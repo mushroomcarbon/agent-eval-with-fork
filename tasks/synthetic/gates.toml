@@ -1,0 +1,58 @@
+# A task with a known answer, for validating the harness (use with --policy gates).
+# The state lives ONLY in the memory of a daemon started during setup: a fork
+# that carried the filesystem but not the process would fail every test.
+id = "gates"
+instruction = "Open every gate correctly."
+max_steps = 10
+setup = """
+mkdir -p /work
+cd /work
+nohup python3 /work/gated.py >/work/gated.log 2>&1 </dev/null &
+for i in $(seq 1 50); do python3 /work/gate.py ping >/dev/null 2>&1 && exit 0; sleep 0.1; done
+echo "daemon did not start"; cat /work/gated.log; exit 1
+"""
+test = "python3 /work/gate.py check 3"
+
+[files]
+"/work/gated.py" = '''
+import os, socketserver
+
+GATES = {}          # in memory only
+PID = os.getpid()
+
+class H(socketserver.StreamRequestHandler):
+    def handle(self):
+        parts = self.rfile.readline().decode().split()
+        if parts[:1] == ["set"] and len(parts) == 3:
+            GATES[int(parts[1])] = parts[2]
+            self.wfile.write(b"ok\n")
+        elif parts[:1] == ["dump"]:
+            body = " ".join(f"{k}={v}" for k, v in sorted(GATES.items()))
+            self.wfile.write(f"{PID} {body}\n".encode())
+        else:
+            self.wfile.write(b"pong\n")
+
+socketserver.TCPServer.allow_reuse_address = True
+socketserver.TCPServer(("127.0.0.1", 7777), H).serve_forever()
+'''
+"/work/gate.py" = '''
+import socket, sys
+
+def ask(line):
+    with socket.create_connection(("127.0.0.1", 7777), timeout=5) as s:
+        s.sendall((line + "\n").encode())
+        return s.makefile().readline().strip()
+
+cmd = sys.argv[1]
+if cmd == "set":
+    print(ask(f"set {sys.argv[2]} {sys.argv[3]}"))
+elif cmd == "check":
+    want = int(sys.argv[2])
+    reply = ask("dump").split()
+    gates = dict(x.split("=") for x in reply[1:])
+    good = len(gates) == want and all(gates.get(str(i)) == "ok" for i in range(want))
+    print(reply, "PASS" if good else "FAIL")
+    sys.exit(0 if good else 1)
+else:
+    print(ask("ping"))
+'''

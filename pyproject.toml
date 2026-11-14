@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "forkeval"
+version = "0.0.1"
+description = "Where agent runs get decided: per-step success probability from exact-state sandbox forks"
+requires-python = ">=3.11"
+dependencies = [
+  "anthropic>=0.60",
+  "zillion-asb>=0.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+forkeval = "forkeval.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/forkeval"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

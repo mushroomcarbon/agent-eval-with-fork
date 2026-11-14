@@ -1,0 +1,76 @@
+# A running service with a bug. The fix has to be live: editing the file is not
+# enough, the process on the port must be the fixed one.
+instruction = """
+A small HTTP service is running on localhost port 8080; its source is /srv/app/server.py.
+GET /sum?a=2&b=3 should return the JSON {"result": 5}, but it returns the wrong number.
+Find the bug and fix it. When you finish, the fixed service must be running on port 8080
+and GET /health must still return {"status": "ok"}.
+"""
+max_steps = 25
+setup = """
+mkdir -p /srv/app
+cd /srv/app
+nohup python3 server.py >/srv/app/server.log 2>&1 </dev/null &
+for i in $(seq 1 50); do python3 -c 'import urllib.request as u; u.urlopen("http://127.0.0.1:8080/health", timeout=1)' 2>/dev/null && exit 0; sleep 0.1; done
+echo "service did not start"; cat /srv/app/server.log; exit 1
+"""
+test = "python3 /tmp/forkeval_test.py"
+
+[files]
+"/srv/app/server.py" = '''
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
+
+
+def combine(a, b):
+    return a - b
+
+
+class Handler(BaseHTTPRequestHandler):
+    def _send(self, code, body):
+        raw = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self):
+        url = urlparse(self.path)
+        if url.path == "/health":
+            return self._send(200, {"status": "ok"})
+        if url.path == "/sum":
+            q = parse_qs(url.query)
+            try:
+                a, b = int(q["a"][0]), int(q["b"][0])
+            except (KeyError, ValueError):
+                return self._send(400, {"error": "a and b must be integers"})
+            return self._send(200, {"result": combine(a, b)})
+        self._send(404, {"error": "not found"})
+
+    def log_message(self, *args):
+        pass
+
+
+HTTPServer(("127.0.0.1", 8080), Handler).serve_forever()
+'''
+
+[test_files]
+"/tmp/forkeval_test.py" = '''
+import json, sys, urllib.request
+
+def get(path):
+    with urllib.request.urlopen("http://127.0.0.1:8080" + path, timeout=5) as r:
+        return json.load(r)
+
+try:
+    assert get("/health") == {"status": "ok"}, "health"
+    for a, b in [(2, 3), (10, -4), (0, 0), (123, 877)]:
+        got = get(f"/sum?a={a}&b={b}")
+        assert got == {"result": a + b}, f"sum({a},{b}) = {got}"
+except Exception as e:
+    print("FAIL:", e)
+    sys.exit(1)
+print("PASS")
+'''

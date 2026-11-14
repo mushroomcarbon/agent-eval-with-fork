@@ -1,0 +1,60 @@
+# State entirely on disk: the control case, where a filesystem snapshot would do.
+instruction = """
+/data/access.log is a web server access log, one request per line:
+
+    <ip> <method> <path> <status> <bytes>
+
+Write /out/report.json, a JSON object with exactly these keys:
+  "requests":   total number of requests (integer)
+  "server_errors": number of requests with a 5xx status (integer)
+  "top_paths":  the 3 most requested paths, most requested first, as a list of
+                [path, count] pairs; break ties by path in ascending order
+  "bytes_by_method": an object mapping each HTTP method to the total bytes of its requests
+"""
+max_steps = 20
+setup = "mkdir -p /data /out && python3 /data/gen.py"
+test = "python3 /tmp/forkeval_test.py"
+
+[files]
+"/data/gen.py" = '''
+import random
+
+rng = random.Random(20261114)
+paths = ["/", "/login", "/api/items", "/api/items/7", "/static/app.js", "/static/app.css", "/health", "/search"]
+weights = [30, 9, 22, 22, 14, 9, 5, 6]
+methods = ["GET"] * 8 + ["POST"] * 3 + ["PUT", "DELETE"]
+statuses = [200] * 40 + [304] * 6 + [404] * 5 + [500] * 3 + [502, 503, 401, 302]
+with open("/data/access.log", "w") as f:
+    for _ in range(4000):
+        ip = f"10.{rng.randrange(4)}.{rng.randrange(256)}.{rng.randrange(1, 255)}"
+        f.write(f"{ip} {rng.choice(methods)} {rng.choices(paths, weights)[0]} {rng.choice(statuses)} {rng.randrange(120, 90000)}\n")
+'''
+
+[test_files]
+"/tmp/forkeval_test.py" = '''
+import collections, json, sys
+
+rows = [line.split() for line in open("/data/access.log") if line.strip()]
+paths = collections.Counter(r[2] for r in rows)
+by_method = collections.defaultdict(int)
+for r in rows:
+    by_method[r[1]] += int(r[4])
+want = {
+    "requests": len(rows),
+    "server_errors": sum(1 for r in rows if r[3].startswith("5")),
+    "top_paths": [[p, c] for p, c in sorted(paths.items(), key=lambda kv: (-kv[1], kv[0]))[:3]],
+    "bytes_by_method": dict(by_method),
+}
+try:
+    got = json.load(open("/out/report.json"))
+    assert set(got) == set(want), f"keys {sorted(got)}"
+    for key in want:
+        g = got[key]
+        if key == "top_paths":
+            g = [list(x) for x in g]
+        assert g == want[key], f"{key}: got {g!r}, want {want[key]!r}"
+except Exception as e:
+    print("FAIL:", e)
+    sys.exit(1)
+print("PASS")
+'''
