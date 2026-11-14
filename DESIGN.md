@@ -1,6 +1,6 @@
 # forkeval: where agent runs get decided
 
-Design draft, 2026-11-13. Nothing is built. Open decisions are in §9; everything else is a proposal.
+Design, 2026-11-13; decisions in §9 settled 2026-11-14. Build status is in the README.
 
 ## 1. What it measures
 
@@ -143,13 +143,13 @@ quadratic in run length. Three schedules, in order of use:
   state. The claim is the measurement (value curves from exact-state forks, with honest intervals) on a fork
   primitive built for it, not that forking is new.
 
-## 9. Decisions needed
+## 9. Decisions (settled 2026-11-14)
 
-| # | Decision | Recommendation |
+| # | Decision | Choice |
 |---|---|---|
 | 1 | Benchmark | Terminal-Bench style tasks (live processes are where a memory fork matters), single-container subset. SWE-bench Lite later if wanted for a familiar baseline. |
 | 2 | Models | `claude-haiku-5-5` for stages 0-2; `claude-sonnet-5-5` as the second model in stage 3. |
 | 3 | k and schedule defaults | k = 6 per state; sequential top-up to 12 where the interval is wide. |
-| 4 | Where it runs | Dev (Wnwdax) for stages 0-1; prod as an ordinary tenant for stage 2 on, which needs fork on prod and the SDK published. |
-| 5 | Where the code lives | Its own public repository (it is a portfolio piece and must not carry platform internals); this file moves there. |
-| 6 | API key and token budget | A key for the harness on the dev box (in `/etc`, not in the repo), and a cap per stage. |
+| 4 | Where it runs | A development deployment for stages 0-1; the production platform as an ordinary tenant from stage 2 on. |
+| 5 | Where the code lives | Its own public repository, with no platform internals: the public API only. |
+| 6 | API key and token budget | A key held outside the repository, and a hard token cap per stage (`--max-tokens`). |
