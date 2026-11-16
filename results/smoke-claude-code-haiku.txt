@@ -1,0 +1,22 @@
+Smoke test, 2026-11-16: claude-haiku-5-5 through the claude-code policy (claude -p on a subscription), dev.
+forkeval run --tasks tasks/handwritten --policy claude-code --model claude-haiku-5-5 --trunks 1 -k 3 --fresh 3 --schedule 0,2
+30 runs (3 trunks, 18 continuations, 9 fresh), all scored; 318,792 tokens (156,979 of them cache reads).
+Too few runs to read anything into the numbers; this only shows the pipeline works with a real model.
+
+drain-queue            ae261d      0   3/3   100.0% [ 46.4, 100.0]           pass
+drain-queue            ae261d      2   3/3   100.0% [ 46.4, 100.0]           pass
+fix-sum-service        fda0b8      0   2/3    66.7% [ 17.7,  96.1]           pass
+fix-sum-service        fda0b8      2   3/3   100.0% [ 46.4, 100.0]           pass
+log-report             6b7b38      0   3/3   100.0% [ 46.4, 100.0]           pass
+log-report             6b7b38      2   3/3   100.0% [ 46.4, 100.0]           pass
+
+share of the outcome decided by step (bootstrap over tasks, trunks, continuations):
+  step  0:   0.0%  [  0.0,   0.0]
+  step  2: 100.0%  [100.0, 100.0]
+
+fork against fresh (pass rate from step-0 forks, and from ordinary runs):
+  drain-queue            forks 3/3 [ 46.4, 100.0]   fresh 3/3 [ 46.4, 100.0]   intervals overlap
+  fix-sum-service        forks 2/3 [ 17.7,  96.1]   fresh 3/3 [ 46.4, 100.0]   intervals overlap
+  log-report             forks 3/3 [ 46.4, 100.0]   fresh 3/3 [ 46.4, 100.0]   intervals overlap
+
+branch points: 6; fork call median 1165 ms, max 1248 ms
