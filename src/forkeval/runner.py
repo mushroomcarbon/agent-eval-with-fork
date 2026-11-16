@@ -8,6 +8,7 @@ which states to keep and how many times to continue each.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import hashlib
 import re
@@ -206,6 +207,7 @@ class Runner:
         self.experiment = experiment
         self.budget = Budget(store, experiment, max_tokens)
         self._slots = asyncio.Semaphore(concurrency)
+        self._spent: BudgetExceeded | None = None
         self._images: dict[str, "asyncio.Task[str]"] = {}
 
     async def image_for(self, task: Task) -> str:
@@ -234,7 +236,7 @@ class Runner:
 
     async def fresh(self, task: Task) -> None:
         """One ordinary run in a sandbox of its own."""
-        async with self._slots:
+        async with self._slot():
             box = await self.factory.create(image=await self.image_for(task), flavor=task.flavor, ttl=task.ttl,
                                             tags=self._tags(task, "fresh"))
             try:
@@ -269,6 +271,19 @@ class Runner:
             solved = await outcome(True) if task.solution else None
             return (not untouched, solved)
 
+    @contextlib.asynccontextmanager
+    async def _slot(self):
+        """One of the `concurrency` places. Once the budget is spent, jobs still waiting
+        for a place end at once instead of each starting a sandbox to find that out."""
+        async with self._slots:
+            if self._spent is not None:
+                raise self._spent
+            try:
+                yield
+            except BudgetExceeded as e:
+                self._spent = e
+                raise
+
     async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool], adaptive: bool = False) -> None:
         """One full run with a branch point at every scheduled step, then k
         continuations of each branch point.
@@ -286,7 +301,7 @@ class Runner:
         Holds one slot throughout, so at most `concurrency` tasks are in
         flight and the live sandboxes peak near concurrency * k.
         """
-        async with self._slots:
+        async with self._slot():
             points: list[_BranchPoint] = []
             box = await self.factory.create(image=await self.image_for(task), flavor=task.flavor, ttl=task.ttl,
                                             tags=self._tags(task, "trunk"))

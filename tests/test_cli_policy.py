@@ -98,3 +98,15 @@ async def test_stops_when_the_subscription_is_as_full_as_allowed(tmp_path):
     with pytest.raises(BudgetExceeded):
         await policy.act(messages)
     assert (tmp_path / "n").read_text().strip() == "2"
+
+
+@pytest.mark.asyncio
+async def test_the_weekly_window_has_its_own_limit(tmp_path):
+    act = _reply({"action": "shell", "command": "pwd"})
+    binary = _fake_cli(tmp_path, [[_plan(0.10, 0.55), act], [_plan(0.12, 0.70), act], act])
+    policy = ClaudeCodePolicy("some-model", binary=binary, max_plan_use=0.5, max_week_use=0.7)
+    messages = [{"role": "user", "content": "task"}]
+    await policy.act(messages)   # the week is fuller than the 5-hour limit allows, and that is fine
+    await policy.act(messages)
+    with pytest.raises(BudgetExceeded):
+        await policy.act(messages)

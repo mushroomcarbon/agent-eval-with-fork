@@ -210,7 +210,7 @@ class ClaudeCodePolicy:
     """
 
     def __init__(self, model: str, *, binary: str = "claude", concurrency: int = 4, timeout: float = 300,
-                 max_plan_use: float | None = None) -> None:
+                 max_plan_use: float | None = None, max_week_use: float | None = None) -> None:
         self.model = model
         self.name = f"claude-code:{model}"
         self._binary = binary
@@ -219,6 +219,8 @@ class ClaudeCodePolicy:
         #: subscription is shared with whatever else its owner does with Claude, so a
         #: long experiment should leave some of it.
         self._max_plan_use = max_plan_use
+        #: The same for the weekly window, which is the scarcer one; without it, the limit above applies to it too.
+        self._max_week_use = max_week_use if max_week_use is not None else max_plan_use
         #: Latest share used of each window the CLI reports, e.g. {"five_hour": 0.11, "seven_day": 0.41}.
         self.plan_use: dict[str, float] = {}
         self._slots = asyncio.Semaphore(concurrency)
@@ -230,9 +232,11 @@ class ClaudeCodePolicy:
 
     async def _call(self, prompt: str) -> dict[str, Any]:
         if self._max_plan_use is not None:
-            full = {w: u for w, u in self.plan_use.items() if u >= self._max_plan_use}
+            limit = {"seven_day": self._max_week_use}
+            full = {w: u for w, u in self.plan_use.items() if u >= limit.get(w, self._max_plan_use)}
             if full:
-                raise BudgetExceeded(f"subscription usage {full} reached the limit of {self._max_plan_use:.2f}")
+                raise BudgetExceeded(f"subscription usage {full} reached its limit "
+                                     f"({self._max_plan_use:.2f}; weekly {self._max_week_use:.2f})")
         for wait in (*self.RETRY_WAITS, None):
             try:
                 return await self._call_once(prompt)

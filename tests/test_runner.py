@@ -133,3 +133,13 @@ async def test_adaptive_follows_a_run_until_it_is_settled(tmp_path):
     assert rows[1]["n"] == 8 and rows[1]["passes"] == 8 * rows[1]["trunk_outcome"]
     assert [r["skipped"] for r in rows] == [0, 0, 1, 1]
     assert FakeBox.live == set()
+
+
+async def test_jobs_still_waiting_end_at_once_when_the_budget_is_spent(tmp_path):
+    runner, store = make(tmp_path, Costly([1.0, 1.0, 1.0], seed=0), max_tokens=500)
+    with pytest.raises(BudgetExceeded):
+        await runner.trunk(TASK, k=4, branch_at=schedule("every"))
+    created = len(FakeFactory.created)
+    with pytest.raises(BudgetExceeded):
+        await runner.fresh(TASK)
+    assert len(FakeFactory.created) == created      # no sandbox was started to find that out

@@ -25,7 +25,7 @@ def _policy(args: argparse.Namespace) -> Policy:
     if args.policy == "gates":
         return GatesPolicy([float(x) for x in args.gates.split(",")])
     if args.policy == "claude-code":
-        return ClaudeCodePolicy(args.model, max_plan_use=args.max_plan_use)
+        return ClaudeCodePolicy(args.model, max_plan_use=args.max_plan_use, max_week_use=args.max_week_use)
     return AnthropicPolicy(args.model)
 
 
@@ -212,8 +212,9 @@ def main(argv: list[str] | None = None) -> int:
                      help="run continuations in step order and stop after the first state whose continuations "
                           "all end the way the trunk did; later states are recorded as skipped")
     run.add_argument("--max-plan-use", type=float, default=0.6,
-                     help="for --policy claude-code: stop once any of the subscription's usage windows "
-                          "(5-hour, weekly) is this full, 0 to 1")
+                     help="for --policy claude-code: stop once the subscription's 5-hour usage window is this full, 0 to 1")
+    run.add_argument("--max-week-use", type=float, default=0.6,
+                     help="the same for the subscription's weekly window")
     run.add_argument("--max-tokens", type=int, help="stop sending model requests once the experiment has used this many tokens")
 
     chk = sub.add_parser("check", help="check the tasks themselves: each must fail untouched and pass after "
