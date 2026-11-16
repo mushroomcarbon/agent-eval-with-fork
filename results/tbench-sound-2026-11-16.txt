@@ -1,0 +1,103 @@
+forkeval check on the dev fleet, 2026-11-16: does each task fail untouched and pass after its own reference
+solution when its Dockerfile is applied in a sandbox (no Docker, no model). Verdict per task; 84 of 100 sound.
+
+acl-permissions-inheritance                          BAD: the test fails after the reference solution
+adaptive-rejection-sampler                           ok
+analyze-access-logs                                  ok
+assign-seats                                         ok
+attention-mil                                        BAD: the test fails after the reference solution
+audio-synth-stft-peaks                               ok
+blind-maze-explorer-algorithm                        ok
+break-filter-js-from-html                            ok
+broken-python                                        ok
+build-cython-ext                                     BAD: the test fails after the reference solution
+build-pmars                                          BAD: the test fails after the reference solution
+build-pov-ray                                        BAD: the test fails after the reference solution
+build-stp                                            BAD: the test fails after the reference solution
+chess-best-move                                      ok
+classifier-debug                                     ok
+cobol-modernization                                  ok
+code-from-image                                      ok
+constraints-scheduling                               ok
+count-call-stack                                     ok
+count-dataset-tokens                                 ok
+countdown-game                                       ok
+cpp-compatibility                                    ok
+cprofiling-python                                    BAD: the test fails after the reference solution
+crack-7z-hash                                        ok
+csv-to-parquet                                       ok
+custom-memory-heap-crash                             error: RuntimeError: build step failed
+db-wal-recovery                                      ok
+decommissioning-service-with-sensitive-data          ok
+deterministic-tarball                                ok
+distribution-search                                  ok
+dna-insert                                           ok
+enemy-grid-escape                                    ok
+extract-elf                                          ok
+fibonacci-server                                     ok
+filter-js-from-html                                  BAD: the test fails after the reference solution
+fix-git                                              error: RuntimeError: build step failed
+fmri-encoding-r                                      ok
+form-filling                                         ok
+gcc-compiler-optimization                            ok
+gcode-to-text                                        BAD: the test fails after the reference solution
+git-leak-recovery                                    ok
+git-multibranch                                      ok
+gomoku-planner                                       ok
+grid-pattern-transform                               ok
+heterogeneous-dates                                  ok
+html-finance-verify                                  ok
+huarong-dao-solver                                   ok
+implement-eigenvectors-from-eigenvalues-research-paper ok
+incompatible-python-fasttext                         ok
+jq-data-processing                                   ok
+jsonl-aggregator                                     ok
+kv-store-grpc                                        ok
+large-scale-text-editing                             BAD: the test fails after the reference solution
+largest-eigenval                                     ok
+llm-spec-decoding                                    error: RuntimeError: build step failed
+log-summary-date-ranges                              ok
+log-summary                                          ok
+mailman                                              ok
+merge-diff-arc-agi-task                              ok
+modernize-fortran-build                              ok
+modernize-scientific-stack                           ok
+multistep-definite-integral                          ok
+new-encrypt-command                                  ok
+nginx-request-logging                                ok
+ode-solver-rk4                                       ok
+openssl-selfsigned-cert                              ok
+optimal-transport                                    ok
+pandas-etl                                           ok
+parallelize-compute-squares                          ok
+pcap-to-netflow                                      ok
+polyglot-c-py                                        ok
+portfolio-optimization                               ok
+processing-pipeline                                  ok
+protocol-analysis-rs                                 ok
+puzzle-solver                                        ok
+pypi-server                                          ok
+pytorch-model-cli                                    ok
+pytorch-model-recovery                               error: TimeoutError: client_timeout
+query-optimize                                       BAD: the test fails after the reference solution
+raman-fitting                                        ok
+recover-obfuscated-files                             ok
+regex-log                                            ok
+sanitize-git-repo                                    ok
+schedule-vacation                                    ok
+schemelike-metacircular-eval                         BAD: the test fails after the reference solution
+sha-puzzle                                           ok
+solve-maze-challenge                                 ok
+solve-sudoku                                         ok
+sparql-professors-universities                       ok
+sqlite-db-truncate                                   ok
+sqlite-with-gcov                                     ok
+swe-bench-fsspec                                     ok
+swe-bench-langcodes                                  ok
+train-bpe-tokenizer                                  ok
+tree-directory-parser                                ok
+tune-mjcf                                            ok
+vulnerable-secret                                    ok
+wasm-pipeline                                        ok
+weighted-max-sat-solver                              ok
+winning-avg-corewars                                 ok
