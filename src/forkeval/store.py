@@ -142,3 +142,21 @@ class Store:
             "SUM(outcome IS NULL) AS unscored FROM runs WHERE experiment = ? AND kind = 'fresh' GROUP BY task_id",
             (experiment,),
         ).fetchall()
+
+    def done(self, experiment: str) -> dict[str, tuple[int, int]]:
+        """Per task: (complete trunks, scored fresh runs). A trunk is complete when it was
+        scored itself and every one of its branch points has at least two scored continuations."""
+        trunks = dict(self.db.execute(
+            """
+            SELECT t.task_id, COUNT(*) FROM runs t
+             WHERE t.experiment = ? AND t.kind = 'trunk' AND t.outcome IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM branch_points bp
+                    WHERE bp.trunk = t.id
+                      AND (SELECT COUNT(c.outcome) FROM runs c WHERE c.branch_point = bp.id) < 2)
+             GROUP BY t.task_id
+            """, (experiment,)).fetchall())
+        fresh = dict(self.db.execute(
+            "SELECT task_id, COUNT(outcome) FROM runs WHERE experiment = ? AND kind = 'fresh' GROUP BY task_id",
+            (experiment,)).fetchall())
+        return {task: (trunks.get(task, 0), fresh.get(task, 0)) for task in set(trunks) | set(fresh)}

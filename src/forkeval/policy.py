@@ -209,7 +209,21 @@ class ClaudeCodePolicy:
         self._slots = asyncio.Semaphore(concurrency)
         self._cwd = tempfile.mkdtemp(prefix="forkeval-cc-")
 
+    #: A failed call is tried again after these waits (seconds): a rate limit or a dropped
+    #: connection passes; a spent subscription allowance does not, and then the run stops.
+    RETRY_WAITS = (5, 20, 60)
+
     async def _call(self, prompt: str) -> dict[str, Any]:
+        for wait in (*self.RETRY_WAITS, None):
+            try:
+                return await self._call_once(prompt)
+            except RuntimeError:
+                if wait is None:
+                    raise
+                await asyncio.sleep(wait)
+        raise AssertionError("unreachable")
+
+    async def _call_once(self, prompt: str) -> dict[str, Any]:
         args = [
             self._binary, "-p", "--model", self.model,
             "--system-prompt", _CLI_SYSTEM_PROMPT,

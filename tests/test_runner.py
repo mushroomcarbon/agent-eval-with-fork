@@ -92,3 +92,23 @@ def test_schedules():
     assert [t for t in range(10) if schedule("grid")(t)] == [0, 1, 2, 3, 6, 9]
     assert [t for t in range(10) if schedule("0, 4")(t)] == [0, 4]
     assert all(schedule("every")(t) for t in range(5))
+
+
+@pytest.mark.asyncio
+async def test_done_counts_only_complete_trunks(tmp_path):
+    store = Store(tmp_path)
+    def trunk(outcome, conts):
+        t = store.start_run(experiment="e", task_id="a", policy="p", kind="trunk")
+        store.end_run(t, outcome=outcome, steps=1, stop="end_turn")
+        bp = store.add_branch_point(trunk=t, step=0, sandbox_id="s", fork_ms=1, suspend_ms=1, true_value=None)
+        for o in conts:
+            c = store.start_run(experiment="e", task_id="a", policy="p", kind="cont", branch_point=bp)
+            store.end_run(c, outcome=o, steps=1, stop="end_turn")
+    trunk(True, [True, False])      # complete
+    trunk(None, [True, True])       # the trunk itself was never scored
+    trunk(False, [True, None])      # a branch point with one scored continuation
+    f = store.start_run(experiment="e", task_id="a", policy="p", kind="fresh")
+    store.end_run(f, outcome=True, steps=1, stop="end_turn")
+    store.start_run(experiment="e", task_id="a", policy="p", kind="fresh")   # still running
+    assert store.done("e") == {"a": (1, 1)}
+    assert store.done("other") == {}

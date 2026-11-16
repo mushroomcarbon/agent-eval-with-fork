@@ -78,10 +78,18 @@ async def _run(args: argparse.Namespace) -> int:
     store = Store(Path(args.data))
     runner = Runner(factory=SandboxFactory(), policy=_policy(args), store=store, experiment=args.experiment,
                     max_tokens=args.max_tokens, concurrency=args.concurrency)
+    # --trunks and --fresh are targets, not increments: running the same command again after an
+    # interruption adds only what is missing. A trunk that died part-way is not continued (its
+    # sandboxes are gone); it stays in the store and a new one is run in its place.
+    done = store.done(args.experiment)
     jobs = []
     for task in tasks:
-        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule)) for _ in range(args.trunks)]
-        jobs += [runner.fresh(task) for _ in range(args.fresh)]
+        have_trunks, have_fresh = done.get(task.id, (0, 0))
+        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule))
+                 for _ in range(max(0, args.trunks - have_trunks))]
+        jobs += [runner.fresh(task) for _ in range(max(0, args.fresh - have_fresh))]
+    if any(done.get(t.id) for t in tasks):
+        print(f"{args.experiment!r} already has results; {len(jobs)} job(s) still to run", file=sys.stderr)
     results = await asyncio.gather(*jobs, return_exceptions=True)
     failed = [r for r in results if isinstance(r, BaseException)]
     for r in failed:
@@ -121,7 +129,9 @@ def _summary(args: argparse.Namespace) -> int:
     if known:
         print(f"\ntrue value inside the 95% interval: {covered}/{known} states")
 
-    states = [State(r["task_id"], r["trunk"], r["step"], r["passes"], r["n"], r["trunk_steps"]) for r in rows]
+    # A trunk that never finished has no last step, so it cannot say when its outcome was settled.
+    states = [State(r["task_id"], r["trunk"], r["step"], r["passes"], r["n"], r["trunk_steps"])
+              for r in rows if r["trunk_outcome"] is not None]
     steps = sorted({s.step for s in states})
     if any(s.n >= 2 for s in states):
         est = decided_by_step(states, steps)
@@ -177,8 +187,8 @@ def main(argv: list[str] | None = None) -> int:
                           "through `claude -p` on a Claude subscription; gates: a synthetic agent of known value")
     run.add_argument("--model", default="claude-haiku-5-5")
     run.add_argument("--gates", default="0.8,0.7,0.9", help="per-gate success probabilities for --policy gates")
-    run.add_argument("--trunks", type=int, default=1, help="trunks per task")
-    run.add_argument("--fresh", type=int, default=0, help="ordinary runs per task, for the fork-against-fresh check")
+    run.add_argument("--trunks", type=int, default=1, help="complete trunks each task should end up with")
+    run.add_argument("--fresh", type=int, default=0, help="ordinary runs each task should end up with, for the fork-against-fresh check")
     run.add_argument("-k", type=int, default=6, help="continuations per branch point")
     run.add_argument("--schedule", default="every", help='"every", "grid", or steps like "0,2,5"')
     run.add_argument("--max-tokens", type=int, help="stop sending model requests once the experiment has used this many tokens")
