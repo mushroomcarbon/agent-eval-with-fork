@@ -63,6 +63,8 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript(SCHEMA)
+        if "cost_usd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(runs)")}:
+            self.db.execute("ALTER TABLE runs ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0")
 
     # -- runs ---------------------------------------------------------------
 
@@ -79,8 +81,9 @@ class Store:
     def add_usage(self, run_id: str, u: Usage) -> None:
         self.db.execute(
             "UPDATE runs SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, "
-            "cache_read_tokens = cache_read_tokens + ?, cache_write_tokens = cache_write_tokens + ? WHERE id = ?",
-            (u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens, run_id),
+            "cache_read_tokens = cache_read_tokens + ?, cache_write_tokens = cache_write_tokens + ?, "
+            "cost_usd = cost_usd + ? WHERE id = ?",
+            (u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens, u.cost_usd, run_id),
         )
 
     def end_run(self, run_id: str, *, outcome: bool | None, steps: int, stop: str | None,
@@ -116,6 +119,10 @@ class Store:
             "FROM runs WHERE experiment = ?", (experiment,),
         ).fetchone()
         return int(row[0])
+
+    def cost_usd(self, experiment: str) -> float:
+        return float(self.db.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM runs WHERE experiment = ?",
+                                     (experiment,)).fetchone()[0])
 
     def states(self, experiment: str) -> list[sqlite3.Row]:
         """One row per branch point: its continuations' passes and count."""

@@ -95,8 +95,10 @@ async def _run(args: argparse.Namespace) -> int:
     for r in failed:
         kind = "budget" if isinstance(r, BudgetExceeded) else "error"
         print(f"{kind}: {type(r).__name__}: {r}", file=sys.stderr)
+    cost = store.cost_usd(args.experiment)
     print(f"{len(results) - len(failed)}/{len(results)} jobs finished; "
-          f"{store.tokens_used(args.experiment)} tokens used in {args.experiment!r}")
+          f"{store.tokens_used(args.experiment)} tokens used in {args.experiment!r}"
+          + (f" (${cost:.2f} at list price)" if cost else ""))
     return 1 if failed else 0
 
 

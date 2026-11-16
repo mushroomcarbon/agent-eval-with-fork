@@ -36,6 +36,9 @@ class Usage:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    #: What the provider says the call cost at list price, when it says (the CLI does;
+    #: on a subscription nothing is charged, and this is the API-equivalent figure).
+    cost_usd: float = 0.0
 
     @property
     def total(self) -> int:
@@ -277,7 +280,8 @@ class ClaudeCodePolicy:
 
 def _add(a: Usage, b: Usage) -> Usage:
     return Usage(a.input_tokens + b.input_tokens, a.output_tokens + b.output_tokens,
-                 a.cache_read_tokens + b.cache_read_tokens, a.cache_write_tokens + b.cache_write_tokens)
+                 a.cache_read_tokens + b.cache_read_tokens, a.cache_write_tokens + b.cache_write_tokens,
+                 a.cost_usd + b.cost_usd)
 
 
 def _cli_usage(reply: dict[str, Any]) -> Usage:
@@ -290,6 +294,7 @@ def _cli_usage(reply: dict[str, Any]) -> Usage:
             output_tokens=sum(int(m.get("outputTokens", 0)) for m in per_model.values()),
             cache_read_tokens=sum(int(m.get("cacheReadInputTokens", 0)) for m in per_model.values()),
             cache_write_tokens=sum(int(m.get("cacheCreationInputTokens", 0)) for m in per_model.values()),
+            cost_usd=float(reply.get("total_cost_usd") or sum(float(m.get("costUSD", 0)) for m in per_model.values())),
         )
     u = reply.get("usage") or {}
     return Usage(int(u.get("input_tokens", 0)), int(u.get("output_tokens", 0)),
