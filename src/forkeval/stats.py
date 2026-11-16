@@ -159,6 +159,33 @@ def decided_by_step(states: Sequence[State], steps: Sequence[int]) -> dict[int, 
     return out
 
 
+def variance_at_start(states: Sequence[State]) -> tuple[float, float, int, int]:
+    """Where the outcome variance sits before any step is taken:
+    (between tasks, within a task, tasks with a mixed result, tasks).
+
+    Over a random task and a random run of it, Var(outcome) = Var(V0) + E[V0 (1 - V0)]:
+    the first term is which task was drawn, the second is what is left for the run
+    to decide, and only the second is what `decided_by_step` divides up. Step-0
+    continuations are pooled per task. The spread of the estimated V0 overstates
+    Var(V0) by their sampling variance V0(1 - V0)/n, which is taken off.
+    """
+    pooled: dict[str, list[int]] = {}
+    for s in states:
+        if s.step == 0:
+            agg = pooled.setdefault(s.task, [0, 0])
+            agg[0] += s.passes
+            agg[1] += s.n
+    tasks = [(x, n) for x, n in pooled.values() if n >= 2]
+    if len(tasks) < 2:
+        return (float("nan"), float("nan"), sum(0 < x < n for x, n in tasks), len(tasks))
+    p = [x / n for x, n in tasks]
+    open_ = [undecided(x, n) for x, n in tasks]
+    mean = sum(p) / len(p)
+    spread = sum((v - mean) ** 2 for v in p) / (len(p) - 1)
+    noise = sum(u / n for u, (_, n) in zip(open_, tasks)) / len(tasks)
+    return (max(0.0, spread - noise), sum(open_) / len(open_), sum(0 < x < n for x, n in tasks), len(tasks))
+
+
 def bootstrap_decided(states: Sequence[State], steps: Sequence[int], *, draws: int = 2000,
                       level: float = 0.95, seed: int = 0) -> dict[int, tuple[float, float]]:
     """Percentile interval for `decided_by_step`, resampling the whole hierarchy:

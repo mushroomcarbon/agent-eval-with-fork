@@ -1,0 +1,93 @@
+pilot1: 12 Terminal-Bench tasks (those whose single screening run took 4 or more steps), claude-haiku-5-5
+through --policy claude-code, 1 trunk per task, a branch point at every step, k = 6, 6 ordinary runs per task.
+Run 2026-11-16 on the dev fleet. PARTIAL: the run stopped itself after 54 minutes when the subscription's
+5-hour window reached the --max-plan-use limit of 0.6 (15,510,390 tokens, $2.87 at the CLI's list-price figure).
+8 of 12 trunks finished; rows with 0/0 are branch points whose continuations were never started.
+Tasks were picked from a screen (a selection, on run length); screen runs are not in these numbers.
+
+task                   trunk    step  pass/k      V    95% interval  true V  trunk
+assign-seats           f852da      0   6/6   100.0% [ 67.0, 100.0]           pass
+assign-seats           f852da      1   6/6   100.0% [ 67.0, 100.0]           pass
+assign-seats           f852da      2   6/6   100.0% [ 67.0, 100.0]           pass
+assign-seats           f852da      3   6/6   100.0% [ 67.0, 100.0]           pass
+assign-seats           f852da      4   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      0   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      1   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      2   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      3   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      4   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      5   6/6   100.0% [ 67.0, 100.0]           pass
+broken-python          04c825      6   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      0   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      1   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      2   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      3   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      4   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      5   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      6   6/6   100.0% [ 67.0, 100.0]           pass
+cobol-modernization    8fc3d0      7   6/6   100.0% [ 67.0, 100.0]           pass
+count-call-stack       427326      0   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      1   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      2   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      3   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      4   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      5   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      6   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      7   0/6     0.0% [  0.0,  33.0]           fail
+count-call-stack       427326      8   0/6     0.0% [  0.0,  33.0]           fail
+csv-to-parquet         1c6ba4      0   6/6   100.0% [ 67.0, 100.0]           pass
+csv-to-parquet         1c6ba4      1   6/6   100.0% [ 67.0, 100.0]           pass
+csv-to-parquet         1c6ba4      2   5/6    83.3% [ 44.2,  98.1]           pass
+csv-to-parquet         1c6ba4      3   6/6   100.0% [ 67.0, 100.0]           pass
+csv-to-parquet         1c6ba4      4   6/6   100.0% [ 67.0, 100.0]           pass
+csv-to-parquet         1c6ba4      5   3/3   100.0% [ 46.4, 100.0]           pass  (3 unscored)
+csv-to-parquet         1c6ba4      6   0/0     n/a% [  0.0, 100.0]           pass
+csv-to-parquet         1c6ba4      7   0/0     n/a% [  0.0, 100.0]           pass
+csv-to-parquet         1c6ba4      8   0/0     n/a% [  0.0, 100.0]           pass
+csv-to-parquet         1c6ba4      9   0/0     n/a% [  0.0, 100.0]           pass
+gomoku-planner         1f1ad1      0   6/6   100.0% [ 67.0, 100.0]           pass
+gomoku-planner         1f1ad1      1   5/6    83.3% [ 44.2,  98.1]           pass
+gomoku-planner         1f1ad1      2   6/6   100.0% [ 67.0, 100.0]           pass
+gomoku-planner         1f1ad1      3   6/6   100.0% [ 67.0, 100.0]           pass
+gomoku-planner         1f1ad1      4   6/6   100.0% [ 67.0, 100.0]           pass
+grid-pattern-transform ee39c2      0   5/6    83.3% [ 44.2,  98.1]           pass
+grid-pattern-transform ee39c2      1   4/6    66.7% [ 28.6,  92.3]           pass
+grid-pattern-transform ee39c2      2   6/6   100.0% [ 67.0, 100.0]           pass
+grid-pattern-transform ee39c2      3   6/6   100.0% [ 67.0, 100.0]           pass
+heterogeneous-dates    5b9729      0   1/5    20.0% [  2.3,  62.9]           fail  (1 unscored)
+heterogeneous-dates    5b9729      1   0/0     n/a% [  0.0, 100.0]           fail
+heterogeneous-dates    5b9729      2   0/0     n/a% [  0.0, 100.0]           fail
+heterogeneous-dates    5b9729      3   0/0     n/a% [  0.0, 100.0]           fail
+heterogeneous-dates    5b9729      4   0/0     n/a% [  0.0, 100.0]           fail
+jsonl-aggregator       4e1a09      0   0/0     n/a% [  0.0, 100.0]              ?
+jsonl-aggregator       4e1a09      1   0/0     n/a% [  0.0, 100.0]              ?
+pandas-etl             e02c48      0   0/0     n/a% [  0.0, 100.0]              ?
+processing-pipeline    8f4e23      0   0/0     n/a% [  0.0, 100.0]              ?
+schedule-vacation      f0813e      0   0/0     n/a% [  0.0, 100.0]              ?
+
+outcome variance before the first step, over 8 tasks: 77.8% is which task it is, 22.2% is left to the run; 2 task(s) had a mixed result at step 0
+  (decided-by-step below divides up only the second part, and rests on those few tasks)
+
+share of the outcome decided by step (bootstrap over tasks, trunks, continuations):
+  step  0:   0.0%  [  0.0,   0.0]
+  step  1: -72.7%  [-350.0,  37.5]
+  step  2:   0.0%  [-216.7, 100.0]
+  step  3:  45.5%  [  0.0, 100.0]
+  step  4:  45.5%  [  0.0, 100.0]
+  step  5: 100.0%  [100.0, 100.0]
+  step  6: 100.0%  [100.0, 100.0]
+  step  7: 100.0%  [100.0, 100.0]
+  step  8: 100.0%  [100.0, 100.0]
+  step  9: 100.0%  [100.0, 100.0]
+
+fork against fresh (pass rate from step-0 forks, and from ordinary runs):
+  assign-seats           forks 6/6 [ 67.0, 100.0]   fresh 6/6 [ 67.0, 100.0]   intervals overlap
+  broken-python          forks 6/6 [ 67.0, 100.0]   fresh 6/6 [ 67.0, 100.0]   intervals overlap
+  cobol-modernization    forks 6/6 [ 67.0, 100.0]   fresh 6/6 [ 67.0, 100.0]   intervals overlap
+  count-call-stack       forks 0/6 [  0.0,  33.0]   fresh 0/6 [  0.0,  33.0]   intervals overlap
+  csv-to-parquet         forks 6/6 [ 67.0, 100.0]   fresh 6/6 [ 67.0, 100.0]   intervals overlap
+  gomoku-planner         forks 6/6 [ 67.0, 100.0]   fresh 5/6 [ 44.2,  98.1]   intervals overlap
+  grid-pattern-transform forks 5/6 [ 44.2,  98.1]   fresh 6/6 [ 67.0, 100.0]   intervals overlap
+  heterogeneous-dates    forks 1/5 [  2.3,  62.9]   fresh 1/5 [  2.3,  62.9]   intervals overlap
+
+branch points: 58; fork call median 1517 ms, max 5681 ms

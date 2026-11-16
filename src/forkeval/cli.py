@@ -16,7 +16,7 @@ from pathlib import Path
 from .env import SandboxFactory
 from .policy import AnthropicPolicy, ClaudeCodePolicy, GatesPolicy, Policy
 from .runner import BudgetExceeded, Runner, schedule
-from .stats import State, bootstrap_decided, decided_by_step, jeffreys_interval
+from .stats import State, bootstrap_decided, decided_by_step, jeffreys_interval, variance_at_start
 from .store import Store
 from .tasks import Task, load_tasks
 
@@ -140,6 +140,14 @@ def _summary(args: argparse.Namespace) -> int:
               for r in rows if r["trunk_outcome"] is not None]
     steps = sorted({s.step for s in states})
     if any(s.n >= 2 for s in states):
+        between, within, mixed, n_tasks = variance_at_start(states)
+        if between == between and between + within > 0:
+            print(f"\noutcome variance before the first step, over {n_tasks} tasks: "
+                  f"{_pct(between / (between + within)).strip()}% is which task it is, "
+                  f"{_pct(within / (between + within)).strip()}% is left to the run; "
+                  f"{mixed} task(s) had a mixed result at step 0")
+            if mixed < 5:
+                print("  (decided-by-step below divides up only the second part, and rests on those few tasks)")
         est = decided_by_step(states, steps)
         ci = bootstrap_decided(states, steps, draws=args.draws)
         print("\nshare of the outcome decided by step (bootstrap over tasks, trunks, continuations):")

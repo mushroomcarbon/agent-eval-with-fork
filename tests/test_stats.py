@@ -83,3 +83,22 @@ def test_decided_handles_trunks_that_end_early():
     est = decided_by_step(states, [0, 1, 5])
     assert est[1] == pytest.approx(1.0)
     assert est[5] == pytest.approx(1.0)     # past the trunk's end nothing is open
+
+
+def test_variance_at_start_separates_task_from_run():
+    from forkeval.stats import variance_at_start
+
+    # Tasks whose true pass rate is 0.1, 0.5 or 0.9: Var(V0) = 0.32^2 * 2/3 ... computed below.
+    rng = random.Random(1)
+    truth = [rng.choice([0.1, 0.5, 0.9]) for _ in range(3000)]
+    states = [State(f"t{i}", "a", 0, sum(rng.random() < v for _ in range(6)), 6, 3) for i, v in enumerate(truth)]
+    between, within, mixed, n = variance_at_start(states)
+    mean = sum(truth) / len(truth)
+    assert n == 3000 and 0 < mixed < n
+    assert between == pytest.approx(sum((v - mean) ** 2 for v in truth) / len(truth), abs=0.01)
+    assert within == pytest.approx(sum(v * (1 - v) for v in truth) / len(truth), abs=0.01)
+
+    # Tasks that always pass or always fail: everything is the task, nothing is left to the run.
+    states = [State(f"t{i}", "a", 0, 6 * (i % 2), 6, 3) for i in range(10)]
+    between, within, mixed, n = variance_at_start(states)
+    assert within == 0 and mixed == 0 and between == pytest.approx(0.25 * 10 / 9)
