@@ -12,7 +12,11 @@ Messages are plain JSON-serialisable dicts in the Messages API shape:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import random
+import tempfile
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -137,6 +141,145 @@ class AnthropicPolicy:
                 cache_write_tokens=getattr(u, "cache_creation_input_tokens", 0) or 0,
             ),
         )
+
+
+_ACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": ["shell", "write_file", "done"]},
+        "command": {"type": "string", "description": "for shell: the command line, run with sh -c"},
+        "path": {"type": "string", "description": "for write_file: absolute path"},
+        "content": {"type": "string", "description": "for write_file: the whole file"},
+        "summary": {"type": "string", "description": "for done: one or two sentences on what was done"},
+    },
+    "required": ["action"],
+    "additionalProperties": False,
+}
+
+_CLI_SYSTEM_PROMPT = (
+    SYSTEM_PROMPT
+    + " You act one step at a time. Each message gives the task and every step taken so far with its result; "
+    "reply with the single next action only. The actions: `shell` runs a command in the task's environment "
+    "(state persists between steps: files, and processes started in the background; for anything that must keep "
+    "running, detach it and redirect its output, or the step does not return: "
+    "nohup CMD >/tmp/CMD.log 2>&1 </dev/null &; each step is a new shell, so `cd` and exported variables do not "
+    "carry over); `write_file` creates or overwrites a file; `done` ends the task. You have no other access to "
+    "the environment: nothing happens except through these actions."
+)
+
+
+def render_transcript(messages: list[Message]) -> str:
+    """The conversation as one prompt, for a model that is called afresh at every step."""
+    out = ["# Task", "", str(messages[0]["content"]), "", "# Steps so far", ""]
+    step = 0
+    for m in messages[1:]:
+        for b in m["content"]:
+            if b.get("type") == "tool_use":
+                step += 1
+                out += [f"## Step {step}: {b['name']}", json.dumps(b["input"], ensure_ascii=False, indent=1)]
+            elif b.get("type") == "tool_result":
+                out += ["Result:", "```", str(b.get("content", "")), "```", ""]
+    if step == 0:
+        out.append("(none yet)")
+    out += ["", "Give the next action."]
+    return "\n".join(out)
+
+
+class ClaudeCodePolicy:
+    """A Claude model reached through the Claude Code CLI's headless mode (`claude -p`),
+    which runs on a Claude subscription instead of an API key.
+
+    The CLI is used as a bare model call: its system prompt is replaced, its
+    tools are off, and it runs in an empty directory so no project
+    instructions or memory are loaded. Each step is a fresh process that sees
+    the whole transcript as text and returns one action as structured output.
+
+    What differs from `AnthropicPolicy`, and so what results from this policy
+    are results about: the model's reasoning is not carried from step to step
+    (every step starts cold from the visible transcript), actions come back as
+    JSON instead of native tool calls, and the CLI adds a few lines about its
+    host (working directory, OS, date) to the context.
+    """
+
+    def __init__(self, model: str, *, binary: str = "claude", concurrency: int = 4, timeout: float = 300) -> None:
+        self.model = model
+        self.name = f"claude-code:{model}"
+        self._binary = binary
+        self._timeout = timeout
+        self._slots = asyncio.Semaphore(concurrency)
+        self._cwd = tempfile.mkdtemp(prefix="forkeval-cc-")
+
+    async def _call(self, prompt: str) -> dict[str, Any]:
+        args = [
+            self._binary, "-p", "--model", self.model,
+            "--system-prompt", _CLI_SYSTEM_PROMPT,
+            "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
+            "--output-format", "json", "--json-schema", json.dumps(_ACTION_SCHEMA),
+        ]
+        async with self._slots:
+            proc = await asyncio.create_subprocess_exec(
+                *args, cwd=self._cwd, stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(prompt.encode()), self._timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                raise RuntimeError(f"claude -p did not answer within {self._timeout:.0f}s") from None
+        if proc.returncode != 0:
+            raise RuntimeError(f"claude -p exited {proc.returncode}: {(err or out).decode(errors='replace')[:500]}")
+        reply = json.loads(out)
+        if reply.get("is_error"):
+            raise RuntimeError(f"claude -p: {str(reply.get('result'))[:500]}")
+        return reply
+
+    async def act(self, messages: list[Message]) -> Turn:
+        prompt = render_transcript(messages)
+        reply: dict[str, Any] = {}
+        action: Any = None
+        used = Usage()
+        # A reply without a valid action (the model answered in prose) is asked for once more.
+        for _ in range(2):
+            reply = await self._call(prompt)
+            used = _add(used, _cli_usage(reply))
+            action = reply.get("structured_output")
+            if isinstance(action, dict) and action.get("action") in ("shell", "write_file", "done"):
+                break
+            action = None
+        if action is None:
+            return Turn(content=[{"type": "text", "text": str(reply.get("result", ""))}], tool_calls=[],
+                        stop="no_action", usage=used)
+        if action["action"] == "done":
+            return Turn(content=[{"type": "text", "text": str(action.get("summary", "done"))}], tool_calls=[],
+                        stop="end_turn", usage=used)
+        if action["action"] == "shell":
+            call = ToolCall(f"cc-{uuid.uuid4().hex[:12]}", "shell", {"command": str(action.get("command", ""))})
+        else:
+            call = ToolCall(f"cc-{uuid.uuid4().hex[:12]}", "write_file",
+                            {"path": str(action.get("path", "")), "content": str(action.get("content", ""))})
+        return Turn(content=[{"type": "tool_use", "id": call.id, "name": call.name, "input": call.input}],
+                    tool_calls=[call], stop="tool_use", usage=used)
+
+
+def _add(a: Usage, b: Usage) -> Usage:
+    return Usage(a.input_tokens + b.input_tokens, a.output_tokens + b.output_tokens,
+                 a.cache_read_tokens + b.cache_read_tokens, a.cache_write_tokens + b.cache_write_tokens)
+
+
+def _cli_usage(reply: dict[str, Any]) -> Usage:
+    """Token counts for one CLI call. `modelUsage` covers every request the call made
+    (returning structured output takes two); `usage` is the fallback."""
+    per_model = reply.get("modelUsage") or {}
+    if per_model:
+        return Usage(
+            input_tokens=sum(int(m.get("inputTokens", 0)) for m in per_model.values()),
+            output_tokens=sum(int(m.get("outputTokens", 0)) for m in per_model.values()),
+            cache_read_tokens=sum(int(m.get("cacheReadInputTokens", 0)) for m in per_model.values()),
+            cache_write_tokens=sum(int(m.get("cacheCreationInputTokens", 0)) for m in per_model.values()),
+        )
+    u = reply.get("usage") or {}
+    return Usage(int(u.get("input_tokens", 0)), int(u.get("output_tokens", 0)),
+                 int(u.get("cache_read_input_tokens", 0)), int(u.get("cache_creation_input_tokens", 0)))
 
 
 class GatesPolicy:

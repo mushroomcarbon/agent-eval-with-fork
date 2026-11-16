@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from .env import SandboxFactory
-from .policy import AnthropicPolicy, GatesPolicy, Policy
+from .policy import AnthropicPolicy, ClaudeCodePolicy, GatesPolicy, Policy
 from .runner import BudgetExceeded, Runner, schedule
 from .stats import State, bootstrap_decided, decided_by_step, jeffreys_interval
 from .store import Store
@@ -24,6 +24,8 @@ from .tasks import load_tasks
 def _policy(args: argparse.Namespace) -> Policy:
     if args.policy == "gates":
         return GatesPolicy([float(x) for x in args.gates.split(",")])
+    if args.policy == "claude-code":
+        return ClaudeCodePolicy(args.model)
     return AnthropicPolicy(args.model)
 
 
@@ -120,7 +122,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--only", help="comma-separated task ids")
     run.add_argument("--experiment", required=True)
     run.add_argument("--data", default="data")
-    run.add_argument("--policy", choices=["anthropic", "gates"], default="anthropic")
+    run.add_argument("--policy", choices=["anthropic", "claude-code", "gates"], default="anthropic",
+                     help="anthropic: the Messages API (needs ANTHROPIC_API_KEY); claude-code: the same models "
+                          "through `claude -p` on a Claude subscription; gates: a synthetic agent of known value")
     run.add_argument("--model", default="claude-haiku-5-5")
     run.add_argument("--gates", default="0.8,0.7,0.9", help="per-gate success probabilities for --policy gates")
     run.add_argument("--trunks", type=int, default=1, help="trunks per task")
