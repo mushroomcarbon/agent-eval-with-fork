@@ -269,9 +269,19 @@ class Runner:
             solved = await outcome(True) if task.solution else None
             return (not untouched, solved)
 
-    async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool]) -> None:
+    async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool], adaptive: bool = False) -> None:
         """One full run with a branch point at every scheduled step, then k
         continuations of each branch point.
+
+        A branch point is a suspended copy of the sandbox and costs no model
+        calls; the continuations are where the tokens go. With `adaptive`, they
+        are spent in step order and stop after the first state whose
+        continuations all end the way the trunk did: from there the run looks
+        settled, and the later states are recorded as skipped. A run that was
+        never in doubt then costs k continuations instead of k per step.
+        What this gives up: a later state can still be open (all k agreeing
+        does not make the value exactly 0 or 1), and `decided_by_step` treats
+        a skipped state like the last one measured before it.
 
         Holds one slot throughout, so at most `concurrency` tasks are in
         flight and the live sandboxes peak near concurrency * k.
@@ -311,9 +321,18 @@ class Runner:
                 finally:
                     # The branch points hold the trunk's states; its own sandbox is done.
                     await box.delete()
+                trunk_outcome = self.store.run_outcome(run_id)
+                settled = False
                 for point in points:
-                    if point.id:
-                        await self._continuations(task, point, k)
+                    if not point.id:
+                        continue
+                    if settled:
+                        self.store.skip_branch_point(point.id)
+                        continue
+                    await self._continuations(task, point, k)
+                    if adaptive and trunk_outcome is not None:
+                        passes, n = self.store.point_result(point.id)
+                        settled = n >= 2 and passes == (n if trunk_outcome else 0)
             finally:
                 await asyncio.gather(*(p.box.delete() for p in points), return_exceptions=True)
 

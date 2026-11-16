@@ -112,3 +112,24 @@ async def test_done_counts_only_complete_trunks(tmp_path):
     store.start_run(experiment="e", task_id="a", policy="p", kind="fresh")   # still running
     assert store.done("e") == {"a": (1, 1)}
     assert store.done("other") == {}
+
+
+async def test_adaptive_spends_nothing_past_a_settled_state(tmp_path):
+    # Never in doubt: only step 0 gets continuations, and the trunk still counts as complete.
+    runner, store = make(tmp_path, GatesPolicy([1.0, 1.0, 1.0], seed=0))
+    await runner.trunk(TASK, k=4, branch_at=schedule("every"), adaptive=True)
+    rows = store.states("x")
+    assert [(r["step"], r["n"], r["skipped"]) for r in rows] == [(0, 4, 0), (1, 0, 1), (2, 0, 1), (3, 0, 1)]
+    assert store.done("x") == {"gates": (1, 0)}
+    assert FakeBox.live == set()
+
+
+async def test_adaptive_follows_a_run_until_it_is_settled(tmp_path):
+    # The first gate is a coin flip and the rest are sure: open at step 0, settled from step 1.
+    runner, store = make(tmp_path, GatesPolicy([0.5, 1.0, 1.0], seed=3))
+    await runner.trunk(TASK, k=8, branch_at=schedule("every"), adaptive=True)
+    rows = store.states("x")
+    assert 0 < rows[0]["passes"] < 8
+    assert rows[1]["n"] == 8 and rows[1]["passes"] == 8 * rows[1]["trunk_outcome"]
+    assert [r["skipped"] for r in rows] == [0, 0, 1, 1]
+    assert FakeBox.live == set()

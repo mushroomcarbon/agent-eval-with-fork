@@ -86,7 +86,7 @@ async def _run(args: argparse.Namespace) -> int:
     jobs = []
     for task in tasks:
         have_trunks, have_fresh = done.get(task.id, (0, 0))
-        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule))
+        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule), adaptive=args.adaptive)
                  for _ in range(max(0, args.trunks - have_trunks))]
         jobs += [runner.fresh(task) for _ in range(max(0, args.fresh - have_fresh))]
     if any(done.get(t.id) for t in tasks):
@@ -119,6 +119,9 @@ def _summary(args: argparse.Namespace) -> int:
     print(f"{'task':<22} {'trunk':<8} {'step':>4} {'pass/k':>7} {'V':>6} {'95% interval':>15} {'true V':>7} {'trunk':>6}")
     covered = known = 0
     for r in rows:
+        if r["skipped"]:
+            print(f"{r['task_id']:<22} {r['trunk'][-6:]:<8} {r['step']:>4}   skipped: settled at an earlier step")
+            continue
         lo, hi = jeffreys_interval(r["passes"], r["n"])
         v = r["passes"] / r["n"] if r["n"] else float("nan")
         true = r["true_value"]
@@ -205,6 +208,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--fresh", type=int, default=0, help="ordinary runs each task should end up with, for the fork-against-fresh check")
     run.add_argument("-k", type=int, default=6, help="continuations per branch point")
     run.add_argument("--schedule", default="every", help='"every", "grid", or steps like "0,2,5"')
+    run.add_argument("--adaptive", action="store_true",
+                     help="run continuations in step order and stop after the first state whose continuations "
+                          "all end the way the trunk did; later states are recorded as skipped")
     run.add_argument("--max-plan-use", type=float, default=0.6,
                      help="for --policy claude-code: stop once any of the subscription's usage windows "
                           "(5-hour, weekly) is this full, 0 to 1")

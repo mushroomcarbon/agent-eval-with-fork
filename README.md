@@ -75,6 +75,18 @@ of FROM, WORKDIR, ENV, RUN, COPY and ADD with one container per task: 195 of the
 rest are skipped with the reason printed (more than one container, multi-stage builds, USER, heredocs, an ENV
 that extends the base image's own variables, compose options a sandbox does not have).
 
+## Spending continuations where the outcome is open
+
+A branch point is a suspended copy of the sandbox: it costs a fork (about 1.5 s) and no model calls. The
+continuations are where the tokens go, and most of them are wasted on runs that were never in doubt. With
+`--adaptive` every scheduled step is still snapshotted, but continuations are run in step order and stop after
+the first state whose k continuations all end the way the trunk did; later states are recorded as skipped.
+
+Replayed on the full grid of `pilot1` (8 tasks, 45 states, 266 continuations): the rule would have run 59
+continuations (22%), and of the 35 states it skips, 2 were 5/6 and the rest unanimous (mean open variance
+0.010, against 0.25 for a coin flip). That is the price: a skipped state is treated as settled when it may
+only be nearly so.
+
 ## Two ways to reach the model
 
 Both are kept, so a result can be reproduced with whichever access a reader has. They are different agents, and

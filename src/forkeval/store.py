@@ -65,6 +65,9 @@ class Store:
         self.db.executescript(SCHEMA)
         if "cost_usd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(runs)")}:
             self.db.execute("ALTER TABLE runs ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0")
+        if "skipped" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
+            # 1: the adaptive schedule chose not to run continuations from this state
+            self.db.execute("ALTER TABLE branch_points ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
 
     # -- runs ---------------------------------------------------------------
 
@@ -111,7 +114,20 @@ class Store:
         )
         return bp_id
 
+    def skip_branch_point(self, bp_id: str) -> None:
+        self.db.execute("UPDATE branch_points SET skipped = 1 WHERE id = ?", (bp_id,))
+
     # -- reading ----------------------------------------------------------------
+
+    def run_outcome(self, run_id: str) -> bool | None:
+        row = self.db.execute("SELECT outcome FROM runs WHERE id = ?", (run_id,)).fetchone()
+        return None if row is None or row["outcome"] is None else bool(row["outcome"])
+
+    def point_result(self, bp_id: str) -> tuple[int, int]:
+        """(passes, scored continuations) of one branch point."""
+        row = self.db.execute("SELECT COALESCE(SUM(outcome), 0) AS x, COUNT(outcome) AS n FROM runs "
+                              "WHERE branch_point = ? AND kind = 'cont'", (bp_id,)).fetchone()
+        return int(row["x"]), int(row["n"])
 
     def tokens_used(self, experiment: str) -> int:
         row = self.db.execute(
@@ -132,7 +148,7 @@ class Store:
                    t.outcome AS trunk_outcome, t.steps AS trunk_steps,
                    COUNT(c.outcome) AS n, COALESCE(SUM(c.outcome), 0) AS passes,
                    SUM(c.id IS NOT NULL AND c.outcome IS NULL) AS unscored,
-                   bp.fork_ms, bp.suspend_ms
+                   bp.fork_ms, bp.suspend_ms, bp.skipped
               FROM branch_points bp
               JOIN runs t ON t.id = bp.trunk
               LEFT JOIN runs c ON c.branch_point = bp.id AND c.kind = 'cont'
@@ -152,14 +168,15 @@ class Store:
 
     def done(self, experiment: str) -> dict[str, tuple[int, int]]:
         """Per task: (complete trunks, scored fresh runs). A trunk is complete when it was
-        scored itself and every one of its branch points has at least two scored continuations."""
+        scored itself and every one of its branch points has at least two scored continuations
+        (or was skipped by the adaptive schedule)."""
         trunks = dict(self.db.execute(
             """
             SELECT t.task_id, COUNT(*) FROM runs t
              WHERE t.experiment = ? AND t.kind = 'trunk' AND t.outcome IS NOT NULL
                AND NOT EXISTS (
                    SELECT 1 FROM branch_points bp
-                    WHERE bp.trunk = t.id
+                    WHERE bp.trunk = t.id AND bp.skipped = 0
                       AND (SELECT COUNT(c.outcome) FROM runs c WHERE c.branch_point = bp.id) < 2)
              GROUP BY t.task_id
             """, (experiment,)).fetchall())
