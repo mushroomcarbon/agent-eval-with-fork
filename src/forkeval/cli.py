@@ -78,7 +78,7 @@ async def _run(args: argparse.Namespace) -> int:
     store = Store(Path(args.data))
     policy = _policy(args)
     runner = Runner(factory=SandboxFactory(), policy=policy, store=store, experiment=args.experiment,
-                    max_tokens=args.max_tokens, concurrency=args.concurrency)
+                    max_tokens=args.max_tokens, concurrency=args.concurrency, max_sandboxes=args.max_sandboxes)
     # --trunks and --fresh are targets, not increments: running the same command again after an
     # interruption adds only what is missing. A trunk that died part-way is not continued (its
     # sandboxes are gone); it stays in the store and a new one is run in its place.
@@ -120,7 +120,8 @@ def _summary(args: argparse.Namespace) -> int:
     covered = known = 0
     for r in rows:
         if r["skipped"]:
-            print(f"{r['task_id']:<22} {r['trunk'][-6:]:<8} {r['step']:>4}   skipped: settled at an earlier step")
+            why = "settled at an earlier step" if r["skipped"] == 1 else "not snapshotted, no room under the sandbox limit"
+            print(f"{r['task_id']:<22} {r['trunk'][-6:]:<8} {r['step']:>4}   skipped: {why}")
             continue
         lo, hi = jeffreys_interval(r["passes"], r["n"])
         v = r["passes"] / r["n"] if r["n"] else float("nan")
@@ -208,6 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--fresh", type=int, default=0, help="ordinary runs each task should end up with, for the fork-against-fresh check")
     run.add_argument("-k", type=int, default=6, help="continuations per branch point")
     run.add_argument("--schedule", default="every", help='"every", "grid", or steps like "0,2,5"')
+    run.add_argument("--max-sandboxes", type=int, default=45,
+                     help="sandboxes this run may hold at once, suspended branch points included; "
+                          "keep it under the tenant's limit")
     run.add_argument("--adaptive", action="store_true",
                      help="run continuations in step order and stop after the first state whose continuations "
                           "all end the way the trunk did; later states are recorded as skipped")

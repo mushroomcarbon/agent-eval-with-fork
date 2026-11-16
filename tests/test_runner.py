@@ -143,3 +143,28 @@ async def test_jobs_still_waiting_end_at_once_when_the_budget_is_spent(tmp_path)
     with pytest.raises(BudgetExceeded):
         await runner.fresh(TASK)
     assert len(FakeFactory.created) == created      # no sandbox was started to find that out
+
+
+async def test_sandbox_limit_is_kept_and_a_step_without_room_is_recorded(tmp_path, monkeypatch):
+    import forkeval.runner as runner_mod
+
+    monkeypatch.setattr(runner_mod, "SNAPSHOT_WAIT", 0.01)
+    peak = 0
+
+    class Watched(set):
+        def add(self, x):
+            nonlocal peak
+            super().add(x)
+            peak = max(peak, len(self))
+
+    monkeypatch.setattr(FakeBox, "live", Watched())
+    store = Store(tmp_path)
+    # Room for the trunk, its 2 continuations and 2 branch points: steps 0 and 1 fit, 2 and 3 do not.
+    runner = Runner(factory=FakeFactory(), policy=GatesPolicy([1.0, 1.0, 1.0], seed=0), store=store,
+                    experiment="x", max_sandboxes=5)
+    await runner.trunk(TASK, k=2, branch_at=schedule("every"))
+    rows = store.states("x")
+    assert [(r["step"], r["n"], r["skipped"]) for r in rows] == [(0, 2, 0), (1, 2, 0), (2, 0, 2), (3, 0, 2)]
+    assert peak <= 5 and len(FakeBox.live) == 0
+    assert store.done("x") == {"gates": (1, 0)}
+    assert runner._room._free == 5

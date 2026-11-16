@@ -87,6 +87,11 @@ continuations (22%), and of the 35 states it skips, 2 were 5/6 and the rest unan
 0.010, against 0.25 for a coin flip). That is the price: a skipped state is treated as settled when it may
 only be nearly so.
 
+A suspended branch point still counts against a tenant's limit on concurrent sandboxes, and a 20-step trunk
+holds 21 of them. `--max-sandboxes` (default 45) keeps a run inside that limit: each trunk holds room for itself
+and its k continuations, and takes room for branch points as it goes. A step that finds none within two minutes
+is recorded as not snapshotted, and the run goes on.
+
 ## Two ways to reach the model
 
 Both are kept, so a result can be reproduced with whichever access a reader has. They are different agents, and

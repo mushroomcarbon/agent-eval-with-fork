@@ -66,7 +66,7 @@ class Store:
         if "cost_usd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(runs)")}:
             self.db.execute("ALTER TABLE runs ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0")
         if "skipped" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
-            # 1: the adaptive schedule chose not to run continuations from this state
+            # 1: the adaptive schedule chose not to run continuations from this state; 2: no room to snapshot it
             self.db.execute("ALTER TABLE branch_points ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
 
     # -- runs ---------------------------------------------------------------
@@ -104,13 +104,13 @@ class Store:
 
     # -- branch points --------------------------------------------------------
 
-    def add_branch_point(self, *, trunk: str, step: int, sandbox_id: str, fork_ms: int, suspend_ms: int,
-                         true_value: float | None) -> str:
+    def add_branch_point(self, *, trunk: str, step: int, sandbox_id: str | None, fork_ms: int | None,
+                         suspend_ms: int | None, true_value: float | None, skipped: int = 0) -> str:
         bp_id = new_id("bp")
         self.db.execute(
-            "INSERT INTO branch_points (id, trunk, step, sandbox_id, fork_ms, suspend_ms, true_value, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (bp_id, trunk, step, sandbox_id, fork_ms, suspend_ms, true_value, time.time()),
+            "INSERT INTO branch_points (id, trunk, step, sandbox_id, fork_ms, suspend_ms, true_value, created_at, "
+            "skipped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (bp_id, trunk, step, sandbox_id, fork_ms, suspend_ms, true_value, time.time(), skipped),
         )
         return bp_id
 
