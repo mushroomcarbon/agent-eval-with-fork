@@ -25,7 +25,7 @@ def _policy(args: argparse.Namespace) -> Policy:
     if args.policy == "gates":
         return GatesPolicy([float(x) for x in args.gates.split(",")])
     if args.policy == "claude-code":
-        return ClaudeCodePolicy(args.model)
+        return ClaudeCodePolicy(args.model, max_plan_use=args.max_plan_use)
     return AnthropicPolicy(args.model)
 
 
@@ -76,7 +76,8 @@ async def _check(args: argparse.Namespace) -> int:
 async def _run(args: argparse.Namespace) -> int:
     tasks = _tasks(args)
     store = Store(Path(args.data))
-    runner = Runner(factory=SandboxFactory(), policy=_policy(args), store=store, experiment=args.experiment,
+    policy = _policy(args)
+    runner = Runner(factory=SandboxFactory(), policy=policy, store=store, experiment=args.experiment,
                     max_tokens=args.max_tokens, concurrency=args.concurrency)
     # --trunks and --fresh are targets, not increments: running the same command again after an
     # interruption adds only what is missing. A trunk that died part-way is not continued (its
@@ -99,6 +100,9 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"{len(results) - len(failed)}/{len(results)} jobs finished; "
           f"{store.tokens_used(args.experiment)} tokens used in {args.experiment!r}"
           + (f" (${cost:.2f} at list price)" if cost else ""))
+    plan_use = getattr(policy, "plan_use", None)
+    if plan_use:
+        print("subscription usage now: " + ", ".join(f"{w} {100 * u:.0f}%" for w, u in sorted(plan_use.items())))
     return 1 if failed else 0
 
 
@@ -193,6 +197,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--fresh", type=int, default=0, help="ordinary runs each task should end up with, for the fork-against-fresh check")
     run.add_argument("-k", type=int, default=6, help="continuations per branch point")
     run.add_argument("--schedule", default="every", help='"every", "grid", or steps like "0,2,5"')
+    run.add_argument("--max-plan-use", type=float, default=0.6,
+                     help="for --policy claude-code: stop once any of the subscription's usage windows "
+                          "(5-hour, weekly) is this full, 0 to 1")
     run.add_argument("--max-tokens", type=int, help="stop sending model requests once the experiment has used this many tokens")
 
     chk = sub.add_parser("check", help="check the tasks themselves: each must fail untouched and pass after "

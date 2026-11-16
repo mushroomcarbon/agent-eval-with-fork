@@ -16,16 +16,12 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .env import Box, BoxFactory, ExecOutput
-from .policy import Message, Policy, ToolCall
+from .policy import BudgetExceeded, Message, Policy, ToolCall
 from .store import Store
 from .tasks import BuildStep, Task
 
 #: A tool result longer than this is cut in the middle; the model sees both ends.
 MAX_RESULT_CHARS = 8000
-
-
-class BudgetExceeded(RuntimeError):
-    """The experiment's token budget is spent. Nothing more is sent to the model."""
 
 
 @dataclass

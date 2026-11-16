@@ -23,6 +23,11 @@ from typing import Any, Protocol
 Message = dict[str, Any]
 
 
+class BudgetExceeded(RuntimeError):
+    """The experiment's allowance (tokens, or a share of a subscription's limit) is spent.
+    Nothing more is sent to the model."""
+
+
 @dataclass(frozen=True)
 class ToolCall:
     id: str
@@ -204,11 +209,18 @@ class ClaudeCodePolicy:
     host (working directory, OS, date) to the context.
     """
 
-    def __init__(self, model: str, *, binary: str = "claude", concurrency: int = 4, timeout: float = 300) -> None:
+    def __init__(self, model: str, *, binary: str = "claude", concurrency: int = 4, timeout: float = 300,
+                 max_plan_use: float | None = None) -> None:
         self.model = model
         self.name = f"claude-code:{model}"
         self._binary = binary
         self._timeout = timeout
+        #: Stop once any of the subscription's usage windows is this full (0 to 1). The
+        #: subscription is shared with whatever else its owner does with Claude, so a
+        #: long experiment should leave some of it.
+        self._max_plan_use = max_plan_use
+        #: Latest share used of each window the CLI reports, e.g. {"five_hour": 0.11, "seven_day": 0.41}.
+        self.plan_use: dict[str, float] = {}
         self._slots = asyncio.Semaphore(concurrency)
         self._cwd = tempfile.mkdtemp(prefix="forkeval-cc-")
 
@@ -217,6 +229,10 @@ class ClaudeCodePolicy:
     RETRY_WAITS = (5, 20, 60)
 
     async def _call(self, prompt: str) -> dict[str, Any]:
+        if self._max_plan_use is not None:
+            full = {w: u for w, u in self.plan_use.items() if u >= self._max_plan_use}
+            if full:
+                raise BudgetExceeded(f"subscription usage {full} reached the limit of {self._max_plan_use:.2f}")
         for wait in (*self.RETRY_WAITS, None):
             try:
                 return await self._call_once(prompt)
@@ -231,7 +247,8 @@ class ClaudeCodePolicy:
             self._binary, "-p", "--model", self.model,
             "--system-prompt", _CLI_SYSTEM_PROMPT,
             "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
-            "--output-format", "json", "--json-schema", json.dumps(_ACTION_SCHEMA),
+            # The event stream, not the single result object: it also carries the subscription's usage.
+            "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(_ACTION_SCHEMA),
         ]
         async with self._slots:
             proc = await asyncio.create_subprocess_exec(
@@ -245,7 +262,23 @@ class ClaudeCodePolicy:
                 raise RuntimeError(f"claude -p did not answer within {self._timeout:.0f}s") from None
         if proc.returncode != 0:
             raise RuntimeError(f"claude -p exited {proc.returncode}: {(err or out).decode(errors='replace')[:500]}")
-        reply = json.loads(out)
+        reply: dict[str, Any] = {}
+        for line in out.decode(errors="replace").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            if event.get("type") == "rate_limit_event":
+                windows = (event.get("rate_limit_info") or {}).get("unifiedWindows") or {}
+                for name, w in windows.items():
+                    if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float)):
+                        self.plan_use[name] = float(w["utilization"])
+            elif event.get("type") == "result" or not reply:
+                reply = event
+        if reply.get("type") != "result":
+            raise RuntimeError(f"claude -p gave no result: {out.decode(errors='replace')[:500]}")
         if reply.get("is_error"):
             raise RuntimeError(f"claude -p: {str(reply.get('result'))[:500]}")
         return reply
