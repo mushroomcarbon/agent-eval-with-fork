@@ -93,6 +93,11 @@ The CLI is called with its system prompt replaced, its tools off and an empty wo
 instructions or memory reach the model. What it adds can still show: in the smoke test the model took to
 running `python3 -I`, a habit from one of those added lines.
 
+A subscription has usage windows (a 5-hour one and a weekly one) shared with everything else its owner does
+with Claude. The CLI reports how full each is, and `--max-plan-use` (default 0.6) stops the experiment once
+any window reaches that share, the same way `--max-tokens` does. `forkeval run` prints the latest figures when
+it ends, and `--trunks`/`--fresh` are targets, so the same command picks up later where it stopped.
+
 Needs `zillion-asb` 0.5.0 or later (the first release with `fork`).
 
 ## Layout
