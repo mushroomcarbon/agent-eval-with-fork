@@ -52,6 +52,29 @@ export ANTHROPIC_API_KEY=...                         # only for --policy anthrop
     --experiment stage0-cc --trunks 1 -k 6 --fresh 6 --max-tokens 2000000
 ```
 
+## Benchmark tasks
+
+`--format tbench` reads task directories in the Terminal-Bench layout from a local checkout of that benchmark
+(nothing of it is copied here; its files ask not to be republished).
+
+```bash
+git clone --depth 1 https://github.com/laude-institute/terminal-bench ../terminal-bench
+T=../terminal-bench/original-tasks
+
+# are the tasks sound here? each must fail untouched and pass after its own reference solution. No model.
+.venv/bin/forkeval check --tasks $T --format tbench --only fix-permissions,hello-world
+
+.venv/bin/forkeval run --tasks $T --format tbench --only fix-permissions,hello-world \
+    --policy claude-code --experiment pilot --trunks 2 -k 6 --schedule grid --max-tokens 3000000
+```
+
+There is no Docker involved. A task's Dockerfile is read as a base image and a list of steps; the steps are
+applied once inside a sandbox started from the base image, and the result is saved as an image that every run
+of the task starts from (`fe-<task>:<hash of the base and steps>`). That covers single-stage Dockerfiles made
+of FROM, WORKDIR, ENV, RUN, COPY and ADD with one container per task: 195 of the benchmark's 241 tasks. The
+rest are skipped with the reason printed (more than one container, multi-stage builds, USER, heredocs, an ENV
+that extends the base image's own variables, compose options a sandbox does not have).
+
 ## Two ways to reach the model
 
 Both are kept, so a result can be reproduced with whichever access a reader has. They are different agents, and
@@ -80,6 +103,7 @@ Needs `zillion-asb` 0.5.0 or later (the first release with `fork`).
 | `src/forkeval/env.py` | The five operations the harness needs from a sandbox: run, write, fork, suspend, delete |
 | `src/forkeval/policy.py` | What picks the next action from the messages: a Claude model through the API, the same through the Claude Code CLI, or the synthetic gates agent |
 | `src/forkeval/runner.py` | One step (`advance`), a run to its end (`finish`), and trunks with branch points and continuations |
+| `src/forkeval/tbench.py` | Tasks in the Terminal-Bench layout: Dockerfile to base image and build steps, tests, reference solution |
 | `src/forkeval/store.py` | SQLite schema and transcripts |
 | `src/forkeval/stats.py` | Jeffreys interval, unbiased `V(1-V)`, decided-by-step, bootstrap. No dependencies |
 | `tasks/handwritten/` | Three tasks: a live service to fix, an in-memory queue to drain, a log to summarise (the on-disk control) |

@@ -27,15 +27,19 @@ class ExecOutput:
 class Box(Protocol):
     id: str
 
-    async def run(self, command: str, *, timeout: int) -> ExecOutput: ...
-    async def write(self, path: str, content: str) -> None: ...
+    async def run(self, command: str, *, timeout: int, cwd: str = "", env: dict[str, str] | None = None) -> ExecOutput: ...
+    async def write(self, path: str, content: str | bytes) -> None: ...
     async def fork(self, count: int) -> list["Box"]: ...
     async def suspend(self) -> None: ...
     async def delete(self) -> None: ...
+    async def commit(self, name: str, tag: str) -> str:
+        """Save the filesystem as an image; returns the id a create takes."""
+        ...
 
 
 class BoxFactory(Protocol):
     async def create(self, *, image: str, flavor: str, ttl: int, tags: dict[str, str]) -> Box: ...
+    async def has_image(self, image_id: str) -> bool: ...
 
 
 # --- the platform ----------------------------------------------------------
@@ -73,17 +77,21 @@ class SandboxBox:
         self._sb = sandbox
         self.id: str = sandbox.id
 
-    async def run(self, command: str, *, timeout: int) -> ExecOutput:
+    async def run(self, command: str, *, timeout: int, cwd: str = "", env: dict[str, str] | None = None) -> ExecOutput:
         from zillion_asb import ExecTimeoutError
 
         try:
-            r = await self._sb.run(command, timeout=timeout)
+            r = await self._sb.run(command, timeout=timeout, cwd=cwd or None, env=env or None)
         except ExecTimeoutError as e:
             return ExecOutput(None, getattr(e, "stdout", "") or "", getattr(e, "stderr", "") or "", timed_out=True)
         return ExecOutput(r.exit_code, r.stdout, r.stderr)
 
-    async def write(self, path: str, content: str) -> None:
+    async def write(self, path: str, content: str | bytes) -> None:
         await self._sb.files.write(path, content)
+
+    async def commit(self, name: str, tag: str) -> str:
+        image = await self._sb.commit(name, tag, wait=True, timeout=900)
+        return image.image_id
 
     async def fork(self, count: int) -> list["SandboxBox"]:
         forks = await _retry_capacity(lambda: self._sb.fork(count), f"fork {self.id}")
@@ -109,3 +117,8 @@ class SandboxFactory:
             lambda: AsyncSandbox.create(image, flavor, ttl=ttl, tags=tags), "create sandbox"
         )
         return SandboxBox(sb)
+
+    async def has_image(self, image_id: str) -> bool:
+        from zillion_asb import AsyncImage
+
+        return any(i.image_id == image_id and i.status == "ready" for i in await AsyncImage.list())

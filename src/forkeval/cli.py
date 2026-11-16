@@ -18,7 +18,7 @@ from .policy import AnthropicPolicy, ClaudeCodePolicy, GatesPolicy, Policy
 from .runner import BudgetExceeded, Runner, schedule
 from .stats import State, bootstrap_decided, decided_by_step, jeffreys_interval
 from .store import Store
-from .tasks import load_tasks
+from .tasks import Task, load_tasks
 
 
 def _policy(args: argparse.Namespace) -> Policy:
@@ -29,10 +29,52 @@ def _policy(args: argparse.Namespace) -> Policy:
     return AnthropicPolicy(args.model)
 
 
+def _tasks(args: argparse.Namespace) -> list[Task]:
+    only = set(args.only.split(",")) if args.only else None
+    if args.format == "tbench":
+        from .tbench import load_tbench_tasks
+
+        tasks, skipped = load_tbench_tasks(Path(args.tasks), only, flavor=args.flavor, max_steps=args.max_steps)
+        for task_id, why in sorted(skipped.items()):
+            print(f"skipped {task_id}: {why}", file=sys.stderr)
+        missing = (only or set()) - {t.id for t in tasks} - set(skipped)
+    else:
+        tasks = [t for t in load_tasks(Path(args.tasks)) if only is None or t.id in only]
+        missing = (only or set()) - {t.id for t in tasks}
+    if missing:
+        raise SystemExit(f"no such task(s) in {args.tasks}: {sorted(missing)}")
+    if not tasks:
+        raise SystemExit("no tasks to run")
+    return tasks
+
+
+async def _check(args: argparse.Namespace) -> int:
+    """Is each task sound on this platform: fails untouched, passes after its reference solution."""
+    tasks = _tasks(args)
+    runner = Runner(factory=SandboxFactory(), policy=GatesPolicy([]), store=Store(Path(args.data)),
+                    experiment="check", concurrency=args.concurrency)
+
+    async def one(task: Task) -> tuple[str, str]:
+        try:
+            fails_untouched, solved = await runner.check(task)
+        except Exception as e:
+            return task.id, f"error: {type(e).__name__}: {str(e)[:300]}"
+        if not fails_untouched:
+            return task.id, "BAD: the test passes with nothing done"
+        if solved is None:
+            return task.id, "fails untouched; no reference solution to try"
+        return task.id, "ok" if solved else "BAD: the test fails after the reference solution"
+
+    results = await asyncio.gather(*(one(t) for t in tasks))
+    for task_id, verdict in results:
+        print(f"{task_id:<40} {verdict}")
+    good = sum(v == "ok" for _, v in results)
+    print(f"{good}/{len(results)} tasks sound")
+    return 0 if good == len(results) else 1
+
+
 async def _run(args: argparse.Namespace) -> int:
-    tasks = load_tasks(Path(args.tasks))
-    if args.only:
-        tasks = [t for t in tasks if t.id in set(args.only.split(","))]
+    tasks = _tasks(args)
     store = Store(Path(args.data))
     runner = Runner(factory=SandboxFactory(), policy=_policy(args), store=store, experiment=args.experiment,
                     max_tokens=args.max_tokens, concurrency=args.concurrency)
@@ -117,11 +159,19 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="forkeval")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
+    def task_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--tasks", required=True, help="directory of tasks")
+        p.add_argument("--format", choices=["toml", "tbench"], default="toml",
+                       help="toml: this repository's task files; tbench: task directories in the Terminal-Bench layout")
+        p.add_argument("--only", help="comma-separated task ids")
+        p.add_argument("--flavor", default="medium", help="sandbox size for --format tbench tasks")
+        p.add_argument("--max-steps", type=int, default=30, help="step limit for --format tbench tasks")
+        p.add_argument("--data", default="data")
+        p.add_argument("--concurrency", type=int, default=2, help="tasks in flight at once")
+
     run = sub.add_parser("run", help="run trunks (with branch points and continuations) and fresh runs")
-    run.add_argument("--tasks", required=True, help="directory of task *.toml files")
-    run.add_argument("--only", help="comma-separated task ids")
+    task_args(run)
     run.add_argument("--experiment", required=True)
-    run.add_argument("--data", default="data")
     run.add_argument("--policy", choices=["anthropic", "claude-code", "gates"], default="anthropic",
                      help="anthropic: the Messages API (needs ANTHROPIC_API_KEY); claude-code: the same models "
                           "through `claude -p` on a Claude subscription; gates: a synthetic agent of known value")
@@ -131,8 +181,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--fresh", type=int, default=0, help="ordinary runs per task, for the fork-against-fresh check")
     run.add_argument("-k", type=int, default=6, help="continuations per branch point")
     run.add_argument("--schedule", default="every", help='"every", "grid", or steps like "0,2,5"')
-    run.add_argument("--concurrency", type=int, default=2, help="tasks in flight at once")
     run.add_argument("--max-tokens", type=int, help="stop sending model requests once the experiment has used this many tokens")
+
+    chk = sub.add_parser("check", help="check the tasks themselves: each must fail untouched and pass after "
+                                       "its reference solution (no model involved)")
+    task_args(chk)
 
     summ = sub.add_parser("summary", help="value per branch point, decided-by-step, fork against fresh")
     summ.add_argument("--experiment", required=True)
@@ -142,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "run":
         return asyncio.run(_run(args))
+    if args.cmd == "check":
+        return asyncio.run(_check(args))
     return _summary(args)
 
 

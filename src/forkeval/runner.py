@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
+import re
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -16,7 +18,7 @@ from typing import Callable
 from .env import Box, BoxFactory, ExecOutput
 from .policy import Message, Policy, ToolCall
 from .store import Store
-from .tasks import Task
+from .tasks import BuildStep, Task
 
 #: A tool result longer than this is cut in the middle; the model sees both ends.
 MAX_RESULT_CHARS = 8000
@@ -58,7 +60,8 @@ async def execute(call: ToolCall, box: Box, task: Task) -> tuple[str, bool]:
     """Run one tool call in the sandbox. Returns (result text, is_error)."""
     try:
         if call.name == "shell":
-            out = await box.run(str(call.input["command"]), timeout=task.step_timeout)
+            out = await box.run(str(call.input["command"]), timeout=task.step_timeout,
+                                cwd=task.workdir, env=task.env)
             return _render(out), out.timed_out
         if call.name == "write_file":
             await box.write(str(call.input["path"]), str(call.input["content"]))
@@ -88,11 +91,27 @@ async def advance(messages: list[Message], box: Box, policy: Policy, task: Task,
     return None
 
 
+_PYTEST_LINE = re.compile(r"^(PASSED|FAILED|ERROR)\s+\S", re.M)
+
+
+def pytest_passed(output: str) -> bool:
+    """Whether a `pytest -rA` run passed, read from its short summary: at least
+    one test, and none failed or errored. A run that never reached pytest has
+    no summary and fails."""
+    _, sep, summary = output.rpartition("short test summary info")
+    if not sep:
+        return False
+    marks = _PYTEST_LINE.findall(summary)
+    return "PASSED" in marks and "FAILED" not in marks and "ERROR" not in marks
+
+
 async def score(box: Box, task: Task) -> bool:
     """Run the task's test in this sandbox. The test files arrive only now."""
     for path, content in task.test_files.items():
         await box.write(path, content)
-    out = await box.run(task.test, timeout=task.test_timeout)
+    out = await box.run(task.test, timeout=task.test_timeout, cwd=task.workdir, env=task.env)
+    if task.test_parser == "pytest":
+        return not out.timed_out and pytest_passed(out.stdout)
     return out.ok
 
 
@@ -100,9 +119,34 @@ async def prepare(box: Box, task: Task) -> None:
     for path, content in task.files.items():
         await box.write(path, content)
     if task.setup:
-        out = await box.run(task.setup, timeout=task.step_timeout)
+        out = await box.run(task.setup, timeout=task.step_timeout, cwd=task.workdir, env=task.env)
         if not out.ok:
             raise RuntimeError(f"task {task.id}: setup failed: {_render(out)[:500]}")
+
+
+#: A build step may install packages or compile; it gets longer than an agent's step.
+BUILD_STEP_TIMEOUT = 1800
+
+
+def built_image_name(task: Task) -> tuple[str, str]:
+    """Name and tag of the image a task's build produces. The tag is a hash of
+    the base image and every step, so a changed build is a different image and
+    an unchanged one is found again."""
+    h = hashlib.sha256(task.image.encode())
+    for st in task.build:
+        for part in (st.run.encode(), st.tar, st.cwd.encode(), repr(st.env).encode()):
+            h.update(len(part).to_bytes(8, "big"))
+            h.update(part)
+    name = "fe-" + re.sub(r"[^a-z0-9]+", "-", task.id.lower()).strip("-")[:48]
+    return name, h.hexdigest()[:12]
+
+
+async def apply_build_step(box: Box, st: BuildStep) -> None:
+    if st.tar:
+        await box.write(BuildStep.ARCHIVE, st.tar)
+    out = await box.run(st.run, timeout=BUILD_STEP_TIMEOUT, cwd=st.cwd, env=dict(st.env))
+    if not out.ok:
+        raise RuntimeError(f"build step failed: {st.run[:200]!r}: {_render(out)[-800:]}")
 
 
 def steps_taken(messages: list[Message]) -> int:
@@ -166,6 +210,28 @@ class Runner:
         self.experiment = experiment
         self.budget = Budget(store, experiment, max_tokens)
         self._slots = asyncio.Semaphore(concurrency)
+        self._images: dict[str, "asyncio.Task[str]"] = {}
+
+    async def image_for(self, task: Task) -> str:
+        """The image a run of this task starts from, building it the first time it is needed."""
+        if not task.build:
+            return task.image
+        if task.id not in self._images:
+            self._images[task.id] = asyncio.ensure_future(self._build_image(task))
+        return await self._images[task.id]
+
+    async def _build_image(self, task: Task) -> str:
+        name, tag = built_image_name(task)
+        if await self.factory.has_image(f"{name}:{tag}"):
+            return f"{name}:{tag}"
+        box = await self.factory.create(image=task.image, flavor=task.flavor, ttl=task.ttl,
+                                        tags=self._tags(task, "build"))
+        try:
+            for st in task.build:
+                await apply_build_step(box, st)
+            return await box.commit(name, tag)
+        finally:
+            await box.delete()
 
     def _tags(self, task: Task, kind: str) -> dict[str, str]:
         return {"forkeval": self.experiment, "task": task.id, "kind": kind}
@@ -173,7 +239,7 @@ class Runner:
     async def fresh(self, task: Task) -> None:
         """One ordinary run in a sandbox of its own."""
         async with self._slots:
-            box = await self.factory.create(image=task.image, flavor=task.flavor, ttl=task.ttl,
+            box = await self.factory.create(image=await self.image_for(task), flavor=task.flavor, ttl=task.ttl,
                                             tags=self._tags(task, "fresh"))
             try:
                 await prepare(box, task)
@@ -184,6 +250,29 @@ class Runner:
             finally:
                 await box.delete()
 
+    async def check(self, task: Task) -> tuple[bool, bool | None]:
+        """Is the task sound here? Returns (untouched environment fails the test,
+        environment after the known solution passes it; None without a solution)."""
+        async with self._slots:
+            image = await self.image_for(task)
+
+            async def outcome(solve: bool) -> bool:
+                box = await self.factory.create(image=image, flavor=task.flavor, ttl=task.ttl,
+                                                tags=self._tags(task, "check"))
+                try:
+                    await prepare(box, task)
+                    if solve:
+                        await box.write("/tmp/.forkeval-solution.sh", task.solution)
+                        await box.run("bash /tmp/.forkeval-solution.sh; rm -f /tmp/.forkeval-solution.sh",
+                                      timeout=BUILD_STEP_TIMEOUT, cwd=task.workdir, env=task.env)
+                    return await score(box, task)
+                finally:
+                    await box.delete()
+
+            untouched = await outcome(False)
+            solved = await outcome(True) if task.solution else None
+            return (not untouched, solved)
+
     async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool]) -> None:
         """One full run with a branch point at every scheduled step, then k
         continuations of each branch point.
@@ -193,7 +282,7 @@ class Runner:
         """
         async with self._slots:
             points: list[_BranchPoint] = []
-            box = await self.factory.create(image=task.image, flavor=task.flavor, ttl=task.ttl,
+            box = await self.factory.create(image=await self.image_for(task), flavor=task.flavor, ttl=task.ttl,
                                             tags=self._tags(task, "trunk"))
             try:
                 try:

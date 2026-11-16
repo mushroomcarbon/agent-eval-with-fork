@@ -13,7 +13,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "pyyaml>=6"]
+tbench = ["pyyaml>=6"]
 
 [project.scripts]
 forkeval = "forkeval.cli:main"
