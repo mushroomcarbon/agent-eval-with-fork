@@ -16,13 +16,15 @@ and the plan are in [DESIGN.md](DESIGN.md).
 ## Status
 
 Stage 0 of 4: the pipeline works end to end on real sandboxes and real forks, validated against a synthetic
-agent whose true V is known in closed form. No model has been run through it yet.
+agent whose true V is known in closed form, and smoke-tested with a real model (30 runs, not enough to read
+anything into).
 
 | | |
 |---|---|
 | Built | task format, agent loop (model + `shell` + `write_file`), trunk / branch point / continuation runner, SQLite store with transcripts, Jeffreys intervals, unbiased decided-by-step estimator, hierarchical bootstrap, token budget, CLI |
 | Validated | `results/stage0-validation-gates.txt`: 16 trunks, 64 branch points, 384 continuations, 36 fresh runs. True V inside the 95% interval at 64 of 64 states; decided-by-step 34% [2, 61] and 77% [53, 96] against true 25% and 80%; step-0 forks 42/96 and fresh runs 14/36 against a true pass rate of 50.4% |
-| Not yet | a real model run (needs an API key), a benchmark adapter, the adaptive schedule, resuming an interrupted experiment, the report page |
+| Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
+| Not yet | a run through the API policy, a benchmark adapter, the adaptive schedule, resuming an interrupted experiment, the report page |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
 the filesystem but not the process would fail every test.
@@ -44,7 +46,29 @@ export ANTHROPIC_API_KEY=...                         # only for --policy anthrop
 # a model on the hand-written tasks, with a hard token cap
 .venv/bin/forkeval run --tasks tasks/handwritten --model claude-haiku-5-5 \
     --experiment stage0 --trunks 1 -k 6 --fresh 6 --max-tokens 2000000
+
+# the same without an API key: the model is reached through the Claude Code CLI on a Claude subscription
+.venv/bin/forkeval run --tasks tasks/handwritten --policy claude-code --model claude-haiku-5-5 \
+    --experiment stage0-cc --trunks 1 -k 6 --fresh 6 --max-tokens 2000000
 ```
+
+## Two ways to reach the model
+
+Both are kept, so a result can be reproduced with whichever access a reader has. They are different agents, and
+a result names the one it came from (the `policy` column of every run).
+
+| | `--policy anthropic` | `--policy claude-code` |
+|---|---|---|
+| Access | `ANTHROPIC_API_KEY`, billed per token | the `claude` CLI logged in to a Claude subscription |
+| A step | one Messages API call in a continuing conversation | one fresh `claude -p` process that reads the whole transcript as text |
+| Actions | native tool calls | one JSON action per call (structured output) |
+| Reasoning | carried from step to step | not carried: each step starts from the visible transcript |
+| Context besides ours | none | a few lines the CLI adds about its host (directory, OS, date) |
+| Cost of a step | grows with the conversation, mostly cache reads | the same, plus a process start (about 1.5 s) |
+
+The CLI is called with its system prompt replaced, its tools off and an empty working directory, so no project
+instructions or memory reach the model. What it adds can still show: in the smoke test the model took to
+running `python3 -I`, a habit from one of those added lines.
 
 Needs `zillion-asb` 0.5.0 or later (the first release with `fork`).
 
@@ -54,7 +78,7 @@ Needs `zillion-asb` 0.5.0 or later (the first release with `fork`).
 |---|---|
 | `src/forkeval/tasks.py` | A task: image, instruction, setup, test, limits. TOML files under `tasks/` |
 | `src/forkeval/env.py` | The five operations the harness needs from a sandbox: run, write, fork, suspend, delete |
-| `src/forkeval/policy.py` | What picks the next action from the messages: a Claude model, or the synthetic gates agent |
+| `src/forkeval/policy.py` | What picks the next action from the messages: a Claude model through the API, the same through the Claude Code CLI, or the synthetic gates agent |
 | `src/forkeval/runner.py` | One step (`advance`), a run to its end (`finish`), and trunks with branch points and continuations |
 | `src/forkeval/store.py` | SQLite schema and transcripts |
 | `src/forkeval/stats.py` | Jeffreys interval, unbiased `V(1-V)`, decided-by-step, bootstrap. No dependencies |
