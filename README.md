@@ -24,7 +24,8 @@ anything into).
 | Built | task format, agent loop (model + `shell` + `write_file`), trunk / branch point / continuation runner, SQLite store with transcripts, Jeffreys intervals, unbiased decided-by-step estimator, hierarchical bootstrap, token budget, CLI |
 | Validated | `results/stage0-validation-gates.txt`: 16 trunks, 64 branch points, 384 continuations, 36 fresh runs. True V inside the 95% interval at 64 of 64 states; decided-by-step 34% [2, 61] and 77% [53, 96] against true 25% and 80%; step-0 forks 42/96 and fresh runs 14/36 against a true pass rate of 50.4% |
 | Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
-| Not yet | a run through the API policy, a benchmark adapter, the adaptive schedule, resuming an interrupted experiment, the report page |
+| Since then | the Terminal-Bench adapter, the adaptive schedule, a cap on states per trunk, resuming a trunk that a budget stopped |
+| Not yet | a run through the API policy, the report page |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
 the filesystem but not the process would fail every test.
@@ -86,6 +87,18 @@ Replayed on the full grid of `pilot1` (8 tasks, 45 states, 266 continuations): t
 continuations (22%), and of the 35 states it skips, 2 were 5/6 and the rest unanimous (mean open variance
 0.010, against 0.25 for a coin flip). That is the price: a skipped state is treated as settled when it may
 only be nearly so.
+
+Settling early does not help a long run that stays open. One 20-step trunk that sat near 50% the whole way
+cost 370k tokens per continuation, about 44M tokens to measure at every step. `--max-states M` measures at most
+M states of a trunk, evenly spaced from its first snapshot to its last (6 of 21 are steps 0, 4, 8, 12, 16, 20);
+the rest are recorded as not measured, and the estimators treat such a state like the last one measured before
+it, so a change in value is dated to the next measured step.
+
+A budget stop used to throw away whatever was in flight. Now, when a limit is reached after a trunk has finished,
+its unmeasured snapshots stay on the platform (`--keep-hours`, 24 by default) with their deadlines pushed out,
+and the same command measures them later instead of starting the task again; `forkeval drop` deletes them. On
+a subscription nothing new is started within 5 points of a usage limit, so the runs in progress finish inside
+it. A trunk that is stopped before it finishes is still lost, and a new one is run in its place.
 
 A suspended branch point still counts against a tenant's limit on concurrent sandboxes, and a 20-step trunk
 holds 21 of them. `--max-sandboxes` (default 45) keeps a run inside that limit: each trunk holds room for itself

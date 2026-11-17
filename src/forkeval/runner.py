@@ -191,8 +191,22 @@ def schedule(spec: str) -> Callable[[int], bool]:
     return lambda t: t in wanted
 
 
-#: `skipped` values of a branch point: the adaptive schedule did not need it; there was no room to snapshot it.
-SETTLED, NO_ROOM = 1, 2
+#: `skipped` values of a branch point: the adaptive schedule did not need it; there was no room to
+#: snapshot it; the trunk had more snapshots than --max-states; a kept snapshot was gone when the run resumed.
+SETTLED, NO_ROOM, OVER_LIMIT, LOST = 1, 2, 3, 4
+
+#: A branch point is a sandbox with a deadline like any other. One that is going to be measured is
+#: given this long from the end of its trunk, enough for every continuation of a long task.
+MEASURE_SECONDS = 6 * 3600
+
+
+def spread(n: int, m: int) -> set[int]:
+    """m of the indices 0..n-1, evenly spaced, the first and the last among them."""
+    if m >= n:
+        return set(range(n))
+    if m <= 1:
+        return {0}
+    return {round(i * (n - 1) / (m - 1)) for i in range(m)}
 
 
 @dataclass
@@ -200,6 +214,7 @@ class _BranchPoint:
     id: str
     box: Box | None
     messages: list[Message]
+    kept: bool = False  # left on the platform by an earlier stop
 
 
 #: How long a trunk waits for room to snapshot a step after the first before it goes on without one.
@@ -234,7 +249,8 @@ class _Room:
 
 class Runner:
     def __init__(self, *, factory: BoxFactory, policy: Policy, store: Store, experiment: str,
-                 max_tokens: int | None = None, concurrency: int = 2, max_sandboxes: int = 45) -> None:
+                 max_tokens: int | None = None, concurrency: int = 2, max_sandboxes: int = 45,
+                 keep_seconds: int = 0) -> None:
         self.factory = factory
         self.policy = policy
         self.store = store
@@ -243,6 +259,9 @@ class Runner:
         self._slots = asyncio.Semaphore(concurrency)
         self._spent: BudgetExceeded | None = None
         self._room = _Room(max_sandboxes)
+        #: When a budget stops a trunk that has finished, its unmeasured snapshots stay on the
+        #: platform this long so that `resume` can measure them later. 0: they are deleted.
+        self.keep_seconds = keep_seconds
         self._images: dict[str, "asyncio.Task[str]"] = {}
 
     async def image_for(self, task: Task) -> str:
@@ -315,6 +334,8 @@ class Runner:
         """One of the `concurrency` places. Once the budget is spent, jobs still waiting
         for a place end at once instead of each starting a sandbox to find that out."""
         async with self._slots:
+            if self._spent is None and self._closing():
+                self._spent = BudgetExceeded("the subscription is close to its limit: nothing new is started")
             if self._spent is not None:
                 raise self._spent
             try:
@@ -323,19 +344,36 @@ class Runner:
                 self._spent = e
                 raise
 
-    async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool], adaptive: bool = False) -> None:
+    def _closing(self) -> bool:
+        return bool(getattr(self.policy, "closing", False))
+
+    async def _drop(self, point: _BranchPoint) -> None:
+        if point.box is not None:
+            gone, point.box = point.box, None
+            try:
+                await gone.delete()
+            finally:
+                if point.kept:
+                    self.store.keep_point(point.id, False)
+                await self._room.give(1)
+
+    async def trunk(self, task: Task, *, k: int, branch_at: Callable[[int], bool], adaptive: bool = False,
+                    max_states: int | None = None) -> None:
         """One full run with a branch point at every scheduled step, then k
         continuations of each branch point.
 
         A branch point is a suspended copy of the sandbox and costs no model
-        calls; the continuations are where the tokens go. With `adaptive`, they
-        are spent in step order and stop after the first state whose
-        continuations all end the way the trunk did: from there the run looks
-        settled, and the later states are recorded as skipped. A run that was
-        never in doubt then costs k continuations instead of k per step.
-        What this gives up: a later state can still be open (all k agreeing
-        does not make the value exactly 0 or 1), and `decided_by_step` treats
-        a skipped state like the last one measured before it.
+        calls; the continuations are where the tokens go. Two things limit them.
+        With `max_states`, a trunk with more snapshots than that has only that
+        many measured, evenly spaced from the first to the last; the rest are
+        recorded as skipped. With `adaptive`, they are measured in step order
+        and that stops after the first state whose continuations all end the
+        way the trunk did: from there the run looks settled, and the later
+        states are recorded as skipped. A run that was never in doubt then
+        costs k continuations instead of k per step. What this gives up: a
+        skipped state can still be open (all k agreeing does not make the value
+        exactly 0 or 1), and `decided_by_step` treats a skipped state like the
+        last one measured before it.
 
         Holds one slot throughout, so at most `concurrency` tasks are in flight.
         Sandboxes are counted against `max_sandboxes` (a tenant has a limit, and
@@ -349,15 +387,6 @@ class Runner:
         async with self._slot():
             await self._room.take(1 + k)
             points: list[_BranchPoint] = []
-
-            async def drop(point: _BranchPoint) -> None:
-                if point.box is not None:
-                    gone, point.box = point.box, None
-                    try:
-                        await gone.delete()
-                    finally:
-                        await self._room.give(1)
-
             try:
                 box = await self.factory.create(image=await self.image_for(task), flavor=task.flavor, ttl=task.ttl,
                                                 tags=self._tags(task, "trunk"))
@@ -392,6 +421,7 @@ class Runner:
                             trunk=run_id, step=step, sandbox_id=bp_box.id,
                             fork_ms=round((t1 - t0) * 1000), suspend_ms=round((t2 - t1) * 1000), true_value=value,
                         )
+                        self.store.save_transcript(point.id, point.messages)
 
                     await branch(0)
                     await finish(messages, box, self.policy, task, self.store, run_id, self.budget,
@@ -399,22 +429,80 @@ class Runner:
                 finally:
                     # The branch points hold the trunk's states; its own sandbox is done.
                     await box.delete()
-                trunk_outcome = self.store.run_outcome(run_id)
-                settled = False
-                for point in points:
-                    if point.id and settled:
-                        self.store.skip_branch_point(point.id)
-                    elif point.id:
-                        await self._continuations(task, point, k)
-                        if adaptive and trunk_outcome is not None:
-                            passes, n = self.store.point_result(point.id)
-                            settled = n >= 2 and passes == (n if trunk_outcome else 0)
-                            if settled:
-                                await asyncio.gather(*(drop(p) for p in points), return_exceptions=True)
-                    await drop(point)
+                live = [p for p in points if p.id]
+                if max_states is not None:
+                    chosen = spread(len(live), max_states)
+                    for i, point in enumerate(live):
+                        if i not in chosen:
+                            self.store.skip_branch_point(point.id, OVER_LIMIT)
+                            await self._drop(point)
+                    live = [p for i, p in enumerate(live) if i in chosen]
+                await asyncio.gather(*(p.box.extend(MEASURE_SECONDS) for p in live if p.box is not None),
+                                     return_exceptions=True)
+                await self._measure(task, run_id, live, k, adaptive)
             finally:
-                await asyncio.gather(*(drop(p) for p in points), return_exceptions=True)
+                await asyncio.gather(*(self._drop(p) for p in points), return_exceptions=True)
                 await self._room.give(1 + k)
+
+    async def resume(self, task: Task, trunk_id: str, *, k: int, adaptive: bool = False) -> None:
+        """Measure what is left of a trunk that a budget stopped after it had
+        finished: its unmeasured branch points were kept on the platform
+        (`keep_seconds`), and their states' messages are in the store."""
+        async with self._slot():
+            rows = [r for r in self.store.points(trunk_id) if not r["skipped"]]
+            held = sum(1 for r in rows if r["kept"])
+            await self._room.take(k + held)
+            points: list[_BranchPoint] = []
+            try:
+                for r in rows:
+                    box = await self.factory.attach(r["sandbox_id"]) if r["kept"] else None
+                    if r["kept"] and box is None:
+                        await self._room.give(1)
+                    messages = self.store.load_transcript(r["id"]) if box is not None else []
+                    points.append(_BranchPoint(id=r["id"], box=box, messages=messages, kept=bool(r["kept"])))
+                await self._measure(task, trunk_id, points, k, adaptive)
+            finally:
+                await asyncio.gather(*(self._drop(p) for p in points), return_exceptions=True)
+                await self._room.give(k)
+
+    async def _measure(self, task: Task, trunk_id: str, points: list[_BranchPoint], k: int, adaptive: bool) -> None:
+        """Continuations for the branch points of a finished trunk, in step order.
+        A point without a sandbox was measured in an earlier session (or its kept
+        snapshot is gone); it still says whether the run was settled by then."""
+        outcome = self.store.run_outcome(trunk_id)
+        settled = False
+        try:
+            for point in points:
+                if settled:
+                    self.store.skip_branch_point(point.id, SETTLED)
+                    await self._drop(point)
+                    continue
+                if point.box is None and point.kept:
+                    self.store.skip_branch_point(point.id, LOST)
+                    continue
+                if point.box is not None:
+                    need = k - self.store.point_result(point.id)[1]
+                    if need > 0:
+                        if self._closing():
+                            raise BudgetExceeded("the subscription is close to its limit: nothing new is started")
+                        await self._continuations(task, point, need)
+                    await self._drop(point)
+                if adaptive and outcome is not None:
+                    passes, n = self.store.point_result(point.id)
+                    settled = n >= 2 and passes == (n if outcome else 0)
+        except BudgetExceeded:
+            if self.keep_seconds and outcome is not None:
+                for point in points:
+                    if point.box is None:
+                        continue
+                    try:
+                        await point.box.extend(self.keep_seconds)
+                    except Exception:
+                        continue  # not kept: the caller deletes it
+                    self.store.keep_point(point.id, True)
+                    point.box = None
+                    await self._room.give(1)
+            raise
 
     async def _continuations(self, task: Task, point: _BranchPoint, k: int) -> None:
         boxes = await point.box.fork(k)

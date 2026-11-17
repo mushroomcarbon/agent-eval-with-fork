@@ -68,6 +68,9 @@ class Store:
         if "skipped" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
             # 1: the adaptive schedule chose not to run continuations from this state; 2: no room to snapshot it
             self.db.execute("ALTER TABLE branch_points ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
+        if "kept" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
+            # 1: the snapshot was left on the platform when a budget stopped the run, to be measured later
+            self.db.execute("ALTER TABLE branch_points ADD COLUMN kept INTEGER NOT NULL DEFAULT 0")
 
     # -- runs ---------------------------------------------------------------
 
@@ -97,10 +100,15 @@ class Store:
         )
 
     def save_transcript(self, run_id: str, messages: list[Message]) -> None:
+        """The messages of a run, or (under a branch point's id) of the state it holds."""
         path = self.dir / "transcripts" / f"{run_id}.jsonl"
         with path.open("w") as f:
             for m in messages:
                 f.write(json.dumps(m, ensure_ascii=False) + "\n")
+
+    def load_transcript(self, run_id: str) -> list[Message]:
+        path = self.dir / "transcripts" / f"{run_id}.jsonl"
+        return [json.loads(line) for line in path.read_text().splitlines() if line]
 
     # -- branch points --------------------------------------------------------
 
@@ -114,8 +122,25 @@ class Store:
         )
         return bp_id
 
-    def skip_branch_point(self, bp_id: str) -> None:
-        self.db.execute("UPDATE branch_points SET skipped = 1 WHERE id = ?", (bp_id,))
+    def skip_branch_point(self, bp_id: str, why: int = 1) -> None:
+        self.db.execute("UPDATE branch_points SET skipped = ?, kept = 0 WHERE id = ?", (why, bp_id))
+
+    def keep_point(self, bp_id: str, kept: bool) -> None:
+        self.db.execute("UPDATE branch_points SET kept = ? WHERE id = ?", (int(kept), bp_id))
+
+    def points(self, trunk: str) -> list[sqlite3.Row]:
+        """The branch points of one trunk, in step order."""
+        return self.db.execute(
+            "SELECT id, step, sandbox_id, skipped, kept FROM branch_points WHERE trunk = ? ORDER BY step", (trunk,)
+        ).fetchall()
+
+    def kept(self, experiment: str) -> list[sqlite3.Row]:
+        """Snapshots left on the platform by a stop: one row each, newest trunk first."""
+        return self.db.execute(
+            "SELECT t.task_id, bp.trunk, bp.id, bp.step, bp.sandbox_id FROM branch_points bp "
+            "JOIN runs t ON t.id = bp.trunk WHERE t.experiment = ? AND bp.kept = 1 "
+            "ORDER BY t.started_at DESC, bp.step", (experiment,)
+        ).fetchall()
 
     # -- reading ----------------------------------------------------------------
 
@@ -169,7 +194,7 @@ class Store:
     def done(self, experiment: str) -> dict[str, tuple[int, int]]:
         """Per task: (complete trunks, scored fresh runs). A trunk is complete when it was
         scored itself and every one of its branch points has at least two scored continuations
-        (or was skipped by the adaptive schedule)."""
+        (or was skipped), with none still kept on the platform waiting to be measured."""
         trunks = dict(self.db.execute(
             """
             SELECT t.task_id, COUNT(*) FROM runs t
@@ -177,7 +202,8 @@ class Store:
                AND NOT EXISTS (
                    SELECT 1 FROM branch_points bp
                     WHERE bp.trunk = t.id AND bp.skipped = 0
-                      AND (SELECT COUNT(c.outcome) FROM runs c WHERE c.branch_point = bp.id) < 2)
+                      AND (bp.kept = 1
+                           OR (SELECT COUNT(c.outcome) FROM runs c WHERE c.branch_point = bp.id) < 2))
              GROUP BY t.task_id
             """, (experiment,)).fetchall())
         fresh = dict(self.db.execute(

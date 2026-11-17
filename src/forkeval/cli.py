@@ -78,19 +78,30 @@ async def _run(args: argparse.Namespace) -> int:
     store = Store(Path(args.data))
     policy = _policy(args)
     runner = Runner(factory=SandboxFactory(), policy=policy, store=store, experiment=args.experiment,
-                    max_tokens=args.max_tokens, concurrency=args.concurrency, max_sandboxes=args.max_sandboxes)
+                    max_tokens=args.max_tokens, concurrency=args.concurrency, max_sandboxes=args.max_sandboxes,
+                    keep_seconds=round(args.keep_hours * 3600))
     # --trunks and --fresh are targets, not increments: running the same command again after an
-    # interruption adds only what is missing. A trunk that died part-way is not continued (its
-    # sandboxes are gone); it stays in the store and a new one is run in its place.
+    # interruption adds only what is missing. A trunk that a budget stopped after it had finished
+    # is resumed from the snapshots kept on the platform; one that died earlier is not continued
+    # (its sandboxes are gone): it stays in the store and a new one is run in its place.
     done = store.done(args.experiment)
-    jobs = []
+    kept: dict[str, str] = {}
+    for r in store.kept(args.experiment):
+        kept.setdefault(r["task_id"], r["trunk"])  # the newest trunk of each task
+    resumes, jobs = [], []
     for task in tasks:
         have_trunks, have_fresh = done.get(task.id, (0, 0))
-        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule), adaptive=args.adaptive)
-                 for _ in range(max(0, args.trunks - have_trunks))]
+        missing = max(0, args.trunks - have_trunks)
+        if missing and task.id in kept:
+            resumes.append(runner.resume(task, kept[task.id], k=args.k, adaptive=args.adaptive))
+            missing -= 1
+        jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule), adaptive=args.adaptive,
+                              max_states=args.max_states) for _ in range(missing)]
         jobs += [runner.fresh(task) for _ in range(max(0, args.fresh - have_fresh))]
-    if any(done.get(t.id) for t in tasks):
-        print(f"{args.experiment!r} already has results; {len(jobs)} job(s) still to run", file=sys.stderr)
+    jobs = resumes + jobs  # unfinished work first
+    if any(done.get(t.id) for t in tasks) or resumes:
+        print(f"{args.experiment!r} already has results; {len(jobs)} job(s) still to run"
+              + (f", {len(resumes)} of them trunks to resume" if resumes else ""), file=sys.stderr)
     results = await asyncio.gather(*jobs, return_exceptions=True)
     failed = [r for r in results if isinstance(r, BaseException)]
     for r in failed:
@@ -103,11 +114,37 @@ async def _run(args: argparse.Namespace) -> int:
     plan_use = getattr(policy, "plan_use", None)
     if plan_use:
         print("subscription usage now: " + ", ".join(f"{w} {100 * u:.0f}%" for w, u in sorted(plan_use.items())))
+    left = store.kept(args.experiment)
+    if left:
+        print(f"{len(left)} snapshot(s) of {len({r['trunk'] for r in left})} finished trunk(s) are kept on the platform "
+              f"for {args.keep_hours:g} h: the same command measures them, `forkeval drop` deletes them")
     return 1 if failed else 0
+
+
+async def _drop(args: argparse.Namespace) -> int:
+    """Delete the snapshots a stopped run left on the platform."""
+    store = Store(Path(args.data))
+    factory = SandboxFactory()
+    rows = store.kept(args.experiment)
+    for r in rows:
+        box = await factory.attach(r["sandbox_id"])
+        if box is not None:
+            await box.delete()
+        store.keep_point(r["id"], False)
+    print(f"{len(rows)} kept snapshot(s) deleted")
+    return 0
 
 
 def _pct(x: float) -> str:
     return "  n/a" if x != x else f"{100 * x:5.1f}"
+
+
+SKIPPED = {
+    1: "settled at an earlier step",
+    2: "not snapshotted, no room under the sandbox limit",
+    3: "not measured, over --max-states",
+    4: "not measured, the kept snapshot was gone",
+}
 
 
 def _summary(args: argparse.Namespace) -> int:
@@ -124,9 +161,9 @@ def _summary(args: argparse.Namespace) -> int:
     def flush() -> None:
         if run:
             first, last = run[0], run[-1]
-            why = "settled at an earlier step" if first["skipped"] == 1 else "not snapshotted, no room under the sandbox limit"
+            why = SKIPPED.get(first["skipped"], "skipped")
             steps_ = str(first["step"]) if first is last else f"{first['step']}-{last['step']}"
-            print(f"{first['task_id']:<{w}} {first['trunk'][-6:]:<8} {steps_:>4}   skipped: {why}")
+            print(f"{first['task_id']:<{w}} {first['trunk'][-6:]:<8} {steps_:>4}   {why}")
             run.clear()
 
     for r in rows:
@@ -234,6 +271,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--adaptive", action="store_true",
                      help="run continuations in step order and stop after the first state whose continuations "
                           "all end the way the trunk did; later states are recorded as skipped")
+    run.add_argument("--max-states", type=int,
+                     help="measure at most this many states of a trunk, evenly spaced from its first snapshot to "
+                          "its last; the others are recorded as skipped")
+    run.add_argument("--keep-hours", type=float, default=24,
+                     help="when a budget stops a trunk that has finished, keep its unmeasured snapshots on the "
+                          "platform this long so the same command can measure them later; 0 deletes them")
     run.add_argument("--max-plan-use", type=float, default=0.6,
                      help="for --policy claude-code: stop once the subscription's 5-hour usage window is this full, 0 to 1")
     run.add_argument("--max-week-use", type=float, default=0.6,
@@ -243,6 +286,10 @@ def main(argv: list[str] | None = None) -> int:
     chk = sub.add_parser("check", help="check the tasks themselves: each must fail untouched and pass after "
                                        "its reference solution (no model involved)")
     task_args(chk)
+
+    drp = sub.add_parser("drop", help="delete the snapshots a stopped run left on the platform")
+    drp.add_argument("--experiment", required=True)
+    drp.add_argument("--data", default="data")
 
     summ = sub.add_parser("summary", help="value per branch point, decided-by-step, fork against fresh")
     summ.add_argument("--experiment", required=True)
@@ -255,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_run(args))
     if args.cmd == "check":
         return asyncio.run(_check(args))
+    if args.cmd == "drop":
+        return asyncio.run(_drop(args))
     return _summary(args)
 
 

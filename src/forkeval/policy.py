@@ -230,13 +230,27 @@ class ClaudeCodePolicy:
     #: connection passes; a spent subscription allowance does not, and then the run stops.
     RETRY_WAITS = (5, 20, 60)
 
+    #: Within this much of a limit nothing new is started, so that the runs in progress
+    #: can finish inside it instead of being cut off half-way and thrown away.
+    WIND_DOWN = 0.05
+
+    def _at(self, margin: float) -> dict[str, float]:
+        """The usage windows that are within `margin` of their limit."""
+        if self._max_plan_use is None:
+            return {}
+        limit = {"seven_day": self._max_week_use}
+        return {w: u for w, u in self.plan_use.items() if u >= limit.get(w, self._max_plan_use) - margin}
+
+    @property
+    def closing(self) -> bool:
+        """True when the runner should start nothing new."""
+        return bool(self._at(self.WIND_DOWN))
+
     async def _call(self, prompt: str) -> dict[str, Any]:
-        if self._max_plan_use is not None:
-            limit = {"seven_day": self._max_week_use}
-            full = {w: u for w, u in self.plan_use.items() if u >= limit.get(w, self._max_plan_use)}
-            if full:
-                raise BudgetExceeded(f"subscription usage {full} reached its limit "
-                                     f"({self._max_plan_use:.2f}; weekly {self._max_week_use:.2f})")
+        full = self._at(0.0)
+        if full:
+            raise BudgetExceeded(f"subscription usage {full} reached its limit "
+                                 f"({self._max_plan_use:.2f}; weekly {self._max_week_use:.2f})")
         for wait in (*self.RETRY_WAITS, None):
             try:
                 return await self._call_once(prompt)

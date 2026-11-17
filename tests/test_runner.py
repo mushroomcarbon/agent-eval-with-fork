@@ -197,3 +197,96 @@ def test_summary_merges_skipped_steps_and_hides_states_with_no_continuations(tmp
 
     main(["summary", "--experiment", "x", "--data", str(tmp_path), "--draws", "10", "--all"])
     assert any(line.startswith("cut ") for line in capsys.readouterr().out.splitlines())
+
+
+def test_spread_keeps_the_ends():
+    from forkeval.runner import spread
+
+    assert spread(4, 6) == {0, 1, 2, 3}
+    assert spread(21, 6) == {0, 4, 8, 12, 16, 20}
+    assert spread(10, 2) == {0, 9} and spread(10, 1) == {0}
+
+
+async def test_max_states_measures_an_even_spread(tmp_path):
+    runner, store = make(tmp_path, GatesPolicy([1.0, 1.0, 1.0], seed=0))
+    await runner.trunk(TASK, k=2, branch_at=schedule("every"), max_states=2)
+    assert [(r["step"], r["n"], r["skipped"]) for r in store.states("x")] == [(0, 2, 0), (1, 0, 3), (2, 0, 3), (3, 2, 0)]
+    assert store.done("x") == {"gates": (1, 0)} and FakeBox.live == set()
+
+
+class StopsAfter(GatesPolicy):
+    """Ends the experiment with a spent budget once it has acted `calls` times."""
+
+    def __init__(self, *a, calls, **kw):
+        super().__init__(*a, **kw)
+        self.calls = calls
+
+    async def act(self, messages):
+        self.calls -= 1
+        if self.calls < 0:
+            raise BudgetExceeded("spent")
+        return await super().act(messages)
+
+
+async def test_a_stopped_trunk_keeps_its_snapshots_and_is_resumed(tmp_path):
+    # The trunk takes 4 calls (3 gates and the last word); the two continuations of step 0 take 8.
+    # Stopping after 14 leaves step 1 part-measured and steps 2 and 3 untouched.
+    runner, store = make(tmp_path, StopsAfter([1.0, 1.0, 1.0], seed=0, calls=14), keep_seconds=3600)
+    with pytest.raises(BudgetExceeded):
+        await runner.trunk(TASK, k=2, branch_at=schedule("every"))
+    kept = store.kept("x")
+    assert [r["step"] for r in kept] == [1, 2, 3]
+    assert FakeBox.live == {r["sandbox_id"] for r in kept}               # only those are left, each given more time
+    assert all(FakeBox.by_id[r["sandbox_id"]].extended >= 3600 for r in kept)
+    assert store.done("x") == {}                                         # not complete while snapshots wait
+    before = {r["step"]: r["n"] for r in store.states("x")}
+    assert before[0] == 2 and before[1] < 2 and before[2] == before[3] == 0
+
+    FakeBox.live.discard(kept[2]["sandbox_id"])                          # one of them expires in the meantime
+    again = Runner(factory=FakeFactory(), policy=GatesPolicy([1.0, 1.0, 1.0], seed=1), store=store, experiment="x",
+                   keep_seconds=3600)
+    await again.resume(TASK, kept[0]["trunk"], k=2)
+    rows = {r["step"]: r for r in store.states("x")}
+    assert [rows[t]["n"] for t in (0, 1, 2)] == [2, 2, 2] and all(rows[t]["passes"] == 2 for t in (0, 1, 2))
+    assert rows[3]["skipped"] == 4                                       # recorded as lost, not silently missing
+    assert store.kept("x") == [] and FakeBox.live == set()
+    assert store.done("x") == {"gates": (1, 0)}
+    # A continuation of the resumed step 2 starts from that state: two gates already open, one to go.
+    cont = store.db.execute("SELECT steps FROM runs WHERE kind = 'cont' AND branch_point = ?",
+                            (rows[2]["branch_point"],)).fetchone()
+    assert cont["steps"] == 3
+
+
+async def test_a_resumed_adaptive_trunk_stops_where_it_is_settled(tmp_path):
+    runner, store = make(tmp_path, StopsAfter([1.0, 1.0, 1.0], seed=0, calls=4), keep_seconds=3600)
+    with pytest.raises(BudgetExceeded):
+        await runner.trunk(TASK, k=2, branch_at=schedule("every"), adaptive=True)
+    assert [r["step"] for r in store.kept("x")] == [0, 1, 2, 3]
+    again = Runner(factory=FakeFactory(), policy=GatesPolicy([1.0, 1.0, 1.0], seed=1), store=store, experiment="x")
+    await again.resume(TASK, store.kept("x")[0]["trunk"], k=2, adaptive=True)
+    assert [(r["step"], r["n"], r["skipped"]) for r in store.states("x")] == [(0, 2, 0), (1, 0, 1), (2, 0, 1), (3, 0, 1)]
+    assert store.kept("x") == [] and FakeBox.live == set()
+
+
+class Closing(GatesPolicy):
+    closing = False
+
+
+async def test_nothing_new_starts_once_the_plan_is_close_to_its_limit(tmp_path):
+    policy = Closing([1.0, 1.0, 1.0], seed=0)
+    runner, store = make(tmp_path, policy, keep_seconds=3600)
+    real = runner._continuations
+
+    async def then_close(task, point, k):
+        await real(task, point, k)
+        policy.closing = True                    # the limit comes near while step 0 is being measured
+
+    runner._continuations = then_close
+    with pytest.raises(BudgetExceeded):
+        await runner.trunk(TASK, k=2, branch_at=schedule("every"))
+    rows = store.states("x")
+    assert [(r["step"], r["n"], r["unscored"]) for r in rows] == [(0, 2, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0)]
+    assert [r["step"] for r in store.kept("x")] == [1, 2, 3]            # no run was cut off half-way
+    with pytest.raises(BudgetExceeded):
+        await runner.fresh(TASK)
+    FakeBox.live.clear()                         # the kept snapshots; later tests start from none

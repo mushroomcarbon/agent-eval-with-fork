@@ -31,6 +31,9 @@ class Box(Protocol):
     async def write(self, path: str, content: str | bytes) -> None: ...
     async def fork(self, count: int) -> list["Box"]: ...
     async def suspend(self) -> None: ...
+    async def extend(self, seconds: int) -> None:
+        """Push the time at which the platform deletes it out by this much."""
+        ...
     async def delete(self) -> None: ...
     async def commit(self, name: str, tag: str) -> str:
         """Save the filesystem as an image; returns the id a create takes."""
@@ -39,6 +42,9 @@ class Box(Protocol):
 
 class BoxFactory(Protocol):
     async def create(self, *, image: str, flavor: str, ttl: int, tags: dict[str, str]) -> Box: ...
+    async def attach(self, sandbox_id: str) -> Box | None:
+        """A suspended sandbox made earlier, or None if it no longer exists."""
+        ...
     async def has_image(self, image_id: str) -> bool: ...
 
 
@@ -100,6 +106,9 @@ class SandboxBox:
     async def suspend(self) -> None:
         await self._sb.suspend()
 
+    async def extend(self, seconds: int) -> None:
+        await self._sb.extend(seconds)
+
     async def delete(self) -> None:
         from zillion_asb import NotFoundError
 
@@ -117,6 +126,15 @@ class SandboxFactory:
             lambda: AsyncSandbox.create(image, flavor, ttl=ttl, tags=tags), "create sandbox"
         )
         return SandboxBox(sb)
+
+    async def attach(self, sandbox_id: str) -> SandboxBox | None:
+        from zillion_asb import AsyncSandbox, NotFoundError
+
+        try:
+            sb = await AsyncSandbox.connect(sandbox_id)
+        except NotFoundError:
+            return None
+        return SandboxBox(sb) if sb.status == "suspended" else None
 
     async def has_image(self, image_id: str) -> bool:
         from zillion_asb import AsyncImage

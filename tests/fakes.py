@@ -14,12 +14,15 @@ class FakeBox:
     """Understands the gates task's commands, which is all the runner tests need."""
 
     live: set[str] = set()
+    by_id: dict[str, "FakeBox"] = {}
 
     def __init__(self, state: dict | None = None) -> None:
         self.id = f"fake-{next(_ids)}"
         self.state = state if state is not None else {"gates": {}, "files": {}}
         self.suspended = False
+        self.extended = 0
         FakeBox.live.add(self.id)
+        FakeBox.by_id[self.id] = self
 
     async def run(self, command: str, *, timeout: int, cwd: str = "", env: dict | None = None) -> ExecOutput:
         assert not self.suspended, "command sent to a suspended box"
@@ -51,6 +54,9 @@ class FakeBox:
     async def suspend(self) -> None:
         self.suspended = True
 
+    async def extend(self, seconds: int) -> None:
+        self.extended += seconds
+
     async def delete(self) -> None:
         FakeBox.live.discard(self.id)
 
@@ -65,6 +71,9 @@ class FakeFactory:
         if image in FakeFactory.images:
             return FakeBox(copy.deepcopy(FakeFactory.images[image]))
         return FakeBox()
+
+    async def attach(self, sandbox_id: str) -> FakeBox | None:
+        return FakeBox.by_id[sandbox_id] if sandbox_id in FakeBox.live else None
 
     async def has_image(self, image_id: str) -> bool:
         return image_id in FakeFactory.images
