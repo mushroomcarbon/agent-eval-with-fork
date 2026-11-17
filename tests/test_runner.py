@@ -168,3 +168,32 @@ async def test_sandbox_limit_is_kept_and_a_step_without_room_is_recorded(tmp_pat
     assert peak <= 5 and len(FakeBox.live) == 0
     assert store.done("x") == {"gates": (1, 0)}
     assert runner._room._free == 5
+
+
+def test_summary_merges_skipped_steps_and_hides_states_with_no_continuations(tmp_path, capsys):
+    from forkeval.cli import main
+
+    store = Store(tmp_path)
+    trunk = store.start_run(experiment="x", task_id="a-task-with-quite-a-long-name", policy="p", kind="trunk")
+    store.end_run(trunk, outcome=True, steps=4, stop="end_turn")
+    for step in range(5):
+        bp = store.add_branch_point(trunk=trunk, step=step, sandbox_id="s", fork_ms=1, suspend_ms=1, true_value=None,
+                                    skipped=0 if step == 0 else 1)
+        if step == 0:
+            for _ in range(2):
+                c = store.start_run(experiment="x", task_id="a-task-with-quite-a-long-name", policy="p", kind="cont",
+                                    branch_point=bp)
+                store.end_run(c, outcome=True, steps=1, stop="end_turn")
+    cut = store.start_run(experiment="x", task_id="cut", policy="p", kind="trunk")   # stopped by the budget
+    store.add_branch_point(trunk=cut, step=0, sandbox_id="s", fork_ms=1, suspend_ms=1, true_value=None)
+
+    assert main(["summary", "--experiment", "x", "--data", str(tmp_path), "--draws", "10"]) == 0
+    out = capsys.readouterr().out
+    table = out.split("\n\n")[0].splitlines()
+    assert len(table) == 3                                   # header, the measured state, one line for steps 1-4
+    assert " 1-4 " in table[2] and "settled at an earlier step" in table[2]
+    assert "1 state(s) were snapshotted but have no scored continuation yet" in out
+    assert not any(line.startswith("cut ") for line in out.splitlines())
+
+    main(["summary", "--experiment", "x", "--data", str(tmp_path), "--draws", "10", "--all"])
+    assert any(line.startswith("cut ") for line in capsys.readouterr().out.splitlines())

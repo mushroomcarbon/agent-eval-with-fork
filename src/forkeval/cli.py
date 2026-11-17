@@ -116,12 +116,28 @@ def _summary(args: argparse.Namespace) -> int:
     if not rows:
         print(f"no branch points in experiment {args.experiment!r}")
         return 1
-    print(f"{'task':<22} {'trunk':<8} {'step':>4} {'pass/k':>7} {'V':>6} {'95% interval':>15} {'true V':>7} {'trunk':>6}")
-    covered = known = 0
+    w = max(22, max(len(r["task_id"]) for r in rows))
+    print(f"{'task':<{w}} {'trunk':<8} {'step':>4} {'pass/k':>7} {'V':>6} {'95% interval':>15} {'true V':>7} {'trunk':>6}")
+    covered = known = unmeasured = 0
+    run: list = []  # consecutive skipped steps of one trunk, printed as one line
+
+    def flush() -> None:
+        if run:
+            first, last = run[0], run[-1]
+            why = "settled at an earlier step" if first["skipped"] == 1 else "not snapshotted, no room under the sandbox limit"
+            steps_ = str(first["step"]) if first is last else f"{first['step']}-{last['step']}"
+            print(f"{first['task_id']:<{w}} {first['trunk'][-6:]:<8} {steps_:>4}   skipped: {why}")
+            run.clear()
+
     for r in rows:
         if r["skipped"]:
-            why = "settled at an earlier step" if r["skipped"] == 1 else "not snapshotted, no room under the sandbox limit"
-            print(f"{r['task_id']:<22} {r['trunk'][-6:]:<8} {r['step']:>4}   skipped: {why}")
+            if run and (run[-1]["trunk"], run[-1]["skipped"]) != (r["trunk"], r["skipped"]):
+                flush()
+            run.append(r)
+            continue
+        flush()
+        if not r["n"] and not args.all:
+            unmeasured += 1  # snapshotted, but the run stopped (or is still going) before any continuation was scored
             continue
         lo, hi = jeffreys_interval(r["passes"], r["n"])
         v = r["passes"] / r["n"] if r["n"] else float("nan")
@@ -134,8 +150,11 @@ def _summary(args: argparse.Namespace) -> int:
             mark = "" if inside else "  <- outside"
         trunk = {1: "pass", 0: "fail", None: "?"}[r["trunk_outcome"]]
         unscored = f"  ({r['unscored']} unscored)" if r["unscored"] else ""
-        print(f"{r['task_id']:<22} {r['trunk'][-6:]:<8} {r['step']:>4} {r['passes']:>3}/{r['n']:<3} {_pct(v)}% "
+        print(f"{r['task_id']:<{w}} {r['trunk'][-6:]:<8} {r['step']:>4} {r['passes']:>3}/{r['n']:<3} {_pct(v)}% "
               f"[{_pct(lo)}, {_pct(hi)}] {'' if true is None else _pct(true) + '%':>7} {trunk:>6}{mark}{unscored}")
+    flush()
+    if unmeasured:
+        print(f"\n{unmeasured} state(s) were snapshotted but have no scored continuation yet (the run stopped first, or is still going); --all lists them")
     if known:
         print(f"\ntrue value inside the 95% interval: {covered}/{known} states")
 
@@ -229,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     summ.add_argument("--experiment", required=True)
     summ.add_argument("--data", default="data")
     summ.add_argument("--draws", type=int, default=2000)
+    summ.add_argument("--all", action="store_true", help="also list states that have no scored continuation yet")
 
     args = ap.parse_args(argv)
     if args.cmd == "run":
