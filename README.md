@@ -97,7 +97,7 @@ it, so a change in value is dated to the next measured step.
 A budget stop used to throw away whatever was in flight. Now, when a limit is reached after a trunk has finished,
 its unmeasured snapshots stay on the platform (`--keep-hours`, 24 by default) with their deadlines pushed out,
 and the same command measures them later instead of starting the task again; `forkeval drop` deletes them. On
-a subscription nothing new is started within 5 points of a usage limit, so the runs in progress finish inside
+a subscription nothing new is started within 5 points of the 5-hour limit or 1 point of the weekly one, so the runs in progress finish inside
 it. A trunk that is stopped before it finishes is still lost, and a new one is run in its place.
 
 A suspended branch point still counts against a tenant's limit on concurrent sandboxes, and a 20-step trunk

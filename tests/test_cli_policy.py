@@ -110,3 +110,20 @@ async def test_the_weekly_window_has_its_own_limit(tmp_path):
     await policy.act(messages)
     with pytest.raises(BudgetExceeded):
         await policy.act(messages)
+
+
+@pytest.mark.asyncio
+async def test_nothing_new_is_started_close_to_a_limit(tmp_path):
+    act = _reply({"action": "shell", "command": "pwd"})
+    binary = _fake_cli(tmp_path, [[_plan(0.44, 0.66), act], [_plan(0.46, 0.66), act], [_plan(0.46, 0.695), act], act])
+    policy = ClaudeCodePolicy("some-model", binary=binary, max_plan_use=0.5, max_week_use=0.7)
+    messages = [{"role": "user", "content": "task"}]
+    await policy.act(messages)
+    assert not policy.closing            # 4 points under the weekly limit is not close: that window is large
+    await policy.act(messages)
+    assert policy.closing                # within 5 points of the 5-hour limit
+    policy.plan_use["five_hour"] = 0.10
+    assert not policy.closing
+    await policy.act(messages)
+    assert policy.closing                # within 1 point of the weekly limit
+    await policy.act(messages)           # and a run in progress may still go on

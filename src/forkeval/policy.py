@@ -231,23 +231,25 @@ class ClaudeCodePolicy:
     RETRY_WAITS = (5, 20, 60)
 
     #: Within this much of a limit nothing new is started, so that the runs in progress
-    #: can finish inside it instead of being cut off half-way and thrown away.
-    WIND_DOWN = 0.05
+    #: can finish inside it instead of being cut off half-way and thrown away. The weekly
+    #: window is many times the size of the 5-hour one, so the same runs are a smaller share of it.
+    WIND_DOWN = {"five_hour": 0.05, "seven_day": 0.01}
 
-    def _at(self, margin: float) -> dict[str, float]:
-        """The usage windows that are within `margin` of their limit."""
+    def _at(self, margin: bool) -> dict[str, float]:
+        """The usage windows that have reached their limit (or, with `margin`, are within WIND_DOWN of it)."""
         if self._max_plan_use is None:
             return {}
         limit = {"seven_day": self._max_week_use}
-        return {w: u for w, u in self.plan_use.items() if u >= limit.get(w, self._max_plan_use) - margin}
+        return {w: u for w, u in self.plan_use.items()
+                if u >= limit.get(w, self._max_plan_use) - (self.WIND_DOWN.get(w, 0.05) if margin else 0.0)}
 
     @property
     def closing(self) -> bool:
         """True when the runner should start nothing new."""
-        return bool(self._at(self.WIND_DOWN))
+        return bool(self._at(True))
 
     async def _call(self, prompt: str) -> dict[str, Any]:
-        full = self._at(0.0)
+        full = self._at(False)
         if full:
             raise BudgetExceeded(f"subscription usage {full} reached its limit "
                                  f"({self._max_plan_use:.2f}; weekly {self._max_week_use:.2f})")
