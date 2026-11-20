@@ -1,0 +1,417 @@
+# medium1: claude-haiku-5-5 through --policy claude-code on the 62 Terminal-Bench medium tasks that passed
+# forkeval check (no screening on outcome). One trunk per task, k = 6, a snapshot at every step, --adaptive,
+# --max-states 6 from the 2026-11-17 windows on (earlier trunks were measured at every step until settled).
+# 2026-11-16 to 2026-11-20, dev platform. 131.7M tokens, $24.31 at the CLI's list-price figure, 8 plan windows.
+# Fork times above ~10 s are the harness waiting on the tenant's sandbox quota (50 until 2026-11-17), not fork latency.
+
+task                                                   trunk    step  pass/k      V    95% interval  true V  trunk
+adaptive-rejection-sampler                             707b36      0   4/6    66.7% [ 28.6,  92.3]           pass
+adaptive-rejection-sampler                             bec1e9      0   0/6     0.0% [  0.0,  33.0]           fail
+adaptive-rejection-sampler                             bec1e9    1-5   settled at an earlier step
+audio-synth-stft-peaks                                 47fc0d      0   2/4    50.0% [ 12.3,  87.7]           fail  (2 unscored)
+audio-synth-stft-peaks                                 be60b8      0   3/6    50.0% [ 16.7,  83.3]           fail
+audio-synth-stft-peaks                                 be60b8      1   3/6    50.0% [ 16.7,  83.3]           fail
+audio-synth-stft-peaks                                 4460f3      0   2/6    33.3% [  7.7,  71.4]           fail
+audio-synth-stft-peaks                                 4460f3      1   2/6    33.3% [  7.7,  71.4]           fail
+audio-synth-stft-peaks                                 4460f3      2   3/6    50.0% [ 16.7,  83.3]           fail
+audio-synth-stft-peaks                                 4460f3      3   2/6    33.3% [  7.7,  71.4]           fail
+audio-synth-stft-peaks                                 4460f3      4   3/6    50.0% [ 16.7,  83.3]           fail
+audio-synth-stft-peaks                                 4460f3      5   0/6     0.0% [  0.0,  33.0]           fail
+audio-synth-stft-peaks                                 4460f3    6-9   settled at an earlier step
+blind-maze-explorer-algorithm                          9a20e6      0   6/6   100.0% [ 67.0, 100.0]           pass
+blind-maze-explorer-algorithm                          9a20e6    1-6   settled at an earlier step
+break-filter-js-from-html                              90c2d3      0   6/6   100.0% [ 67.0, 100.0]           pass
+break-filter-js-from-html                              90c2d3    1-7   settled at an earlier step
+chess-best-move                                        15747a      0   3/6    50.0% [ 16.7,  83.3]           pass
+chess-best-move                                        15747a      1   4/6    66.7% [ 28.6,  92.3]           pass
+chess-best-move                                        04303b      0   3/6    50.0% [ 16.7,  83.3]           fail
+chess-best-move                                        04303b    1-5   not measured, over --max-states
+chess-best-move                                        04303b      6   2/6    33.3% [  7.7,  71.4]           fail
+chess-best-move                                        04303b   7-11   not measured, over --max-states
+chess-best-move                                        04303b     12   0/6     0.0% [  0.0,  33.0]           fail
+chess-best-move                                        04303b   13-17   not measured, over --max-states
+chess-best-move                                        04303b     18   settled at an earlier step
+chess-best-move                                        04303b   19-23   not measured, over --max-states
+chess-best-move                                        04303b     24   settled at an earlier step
+chess-best-move                                        04303b   25-29   not measured, over --max-states
+chess-best-move                                        04303b     30   settled at an earlier step
+classifier-debug                                       e5ae72      0   0/6     0.0% [  0.0,  33.0]           fail
+classifier-debug                                       e5ae72   1-15   settled at an earlier step
+code-from-image                                        965e4e      0   5/6    83.3% [ 44.2,  98.1]           pass
+code-from-image                                        965e4e      1   6/6   100.0% [ 67.0, 100.0]           pass
+code-from-image                                        965e4e    2-7   settled at an earlier step
+constraints-scheduling                                 fbe2eb      0   6/6   100.0% [ 67.0, 100.0]           pass
+constraints-scheduling                                 fbe2eb    1-3   settled at an earlier step
+count-dataset-tokens                                   7a0a2d      0   6/6   100.0% [ 67.0, 100.0]           pass
+count-dataset-tokens                                   7a0a2d    1-9   settled at an earlier step
+crack-7z-hash                                          026e4a      0   6/6   100.0% [ 67.0, 100.0]           pass
+crack-7z-hash                                          026e4a   1-11   settled at an earlier step
+db-wal-recovery                                        3e712e      0   5/6    83.3% [ 44.2,  98.1]           pass
+db-wal-recovery                                        3e712e      1   6/6   100.0% [ 67.0, 100.0]           pass
+db-wal-recovery                                        3e712e    2-4   settled at an earlier step
+decommissioning-service-with-sensitive-data            608fcc      0   4/6    66.7% [ 28.6,  92.3]           pass
+decommissioning-service-with-sensitive-data            608fcc      1   6/6   100.0% [ 67.0, 100.0]           pass
+decommissioning-service-with-sensitive-data            608fcc    2-5   settled at an earlier step
+deterministic-tarball                                  39b058      0   6/6   100.0% [ 67.0, 100.0]           pass
+deterministic-tarball                                  39b058    1-5   settled at an earlier step
+distribution-search                                    4b1847      0   6/6   100.0% [ 67.0, 100.0]           pass
+distribution-search                                    4b1847    1-3   settled at an earlier step
+dna-insert                                             75a985      0   4/6    66.7% [ 28.6,  92.3]           fail
+dna-insert                                             75a985      1   4/6    66.7% [ 28.6,  92.3]           fail
+dna-insert                                             75a985      2   2/6    33.3% [  7.7,  71.4]           fail
+dna-insert                                             75a985      3   6/6   100.0% [ 67.0, 100.0]           fail
+dna-insert                                             75a985      4   2/6    33.3% [  7.7,  71.4]           fail
+dna-insert                                             02b1ee      0   5/6    83.3% [ 44.2,  98.1]           fail
+dna-insert                                             02b1ee      1   3/6    50.0% [ 16.7,  83.3]           fail
+dna-insert                                             02b1ee      2   5/6    83.3% [ 44.2,  98.1]           fail
+dna-insert                                             02b1ee      3   3/6    50.0% [ 16.7,  83.3]           fail
+dna-insert                                             02b1ee      4   4/6    66.7% [ 28.6,  92.3]           fail
+dna-insert                                             da5164      0   3/6    50.0% [ 16.7,  83.3]           pass
+dna-insert                                             da5164      1   not measured, over --max-states
+dna-insert                                             da5164      2   5/6    83.3% [ 44.2,  98.1]           pass
+dna-insert                                             da5164      3   not measured, over --max-states
+dna-insert                                             da5164      4   4/6    66.7% [ 28.6,  92.3]           pass
+dna-insert                                             da5164      5   not measured, over --max-states
+dna-insert                                             da5164      6   5/6    83.3% [ 44.2,  98.1]           pass
+dna-insert                                             da5164      7   not measured, over --max-states
+dna-insert                                             da5164      8   5/6    83.3% [ 44.2,  98.1]           pass
+dna-insert                                             da5164      9   not measured, over --max-states
+dna-insert                                             da5164     10   6/6   100.0% [ 67.0, 100.0]           pass
+enemy-grid-escape                                      805242      0   1/1   100.0% [ 14.7, 100.0]           pass  (5 unscored)
+enemy-grid-escape                                      9c2cb0      0   6/6   100.0% [ 67.0, 100.0]           pass
+enemy-grid-escape                                      9c2cb0      1   not measured, over --max-states
+enemy-grid-escape                                      9c2cb0      2   settled at an earlier step
+enemy-grid-escape                                      9c2cb0    3-4   not measured, over --max-states
+enemy-grid-escape                                      9c2cb0      5   settled at an earlier step
+enemy-grid-escape                                      9c2cb0      6   not measured, over --max-states
+enemy-grid-escape                                      9c2cb0      7   settled at an earlier step
+enemy-grid-escape                                      9c2cb0    8-9   not measured, over --max-states
+enemy-grid-escape                                      9c2cb0     10   settled at an earlier step
+enemy-grid-escape                                      9c2cb0     11   not measured, over --max-states
+enemy-grid-escape                                      9c2cb0     12   settled at an earlier step
+extract-elf                                            66e7cd      0   0/6     0.0% [  0.0,  33.0]           fail
+extract-elf                                            66e7cd   1-12   settled at an earlier step
+fibonacci-server                                       c32971      0   6/6   100.0% [ 67.0, 100.0]           pass
+fibonacci-server                                       c32971    1-5   settled at an earlier step
+fmri-encoding-r                                        fd1fb6      0   2/2   100.0% [ 33.3, 100.0]           pass  (4 unscored)
+fmri-encoding-r                                        a7f70a      0   6/6   100.0% [ 67.0, 100.0]           pass
+fmri-encoding-r                                        a7f70a      1   not measured, over --max-states
+fmri-encoding-r                                        a7f70a      2   settled at an earlier step
+fmri-encoding-r                                        a7f70a      3   not measured, over --max-states
+fmri-encoding-r                                        a7f70a      4   settled at an earlier step
+fmri-encoding-r                                        a7f70a    5-6   not measured, over --max-states
+fmri-encoding-r                                        a7f70a      7   settled at an earlier step
+fmri-encoding-r                                        a7f70a      8   not measured, over --max-states
+fmri-encoding-r                                        a7f70a      9   settled at an earlier step
+fmri-encoding-r                                        a7f70a     10   not measured, over --max-states
+fmri-encoding-r                                        a7f70a     11   settled at an earlier step
+form-filling                                           018880      0   5/6    83.3% [ 44.2,  98.1]           pass
+form-filling                                           018880      1   1/1   100.0% [ 14.7, 100.0]           pass  (5 unscored)
+form-filling                                           3fa8fa      0   6/6   100.0% [ 67.0, 100.0]           pass
+form-filling                                           3fa8fa      1   settled at an earlier step
+form-filling                                           3fa8fa      2   not measured, over --max-states
+form-filling                                           3fa8fa    3-4   settled at an earlier step
+form-filling                                           3fa8fa      5   not measured, over --max-states
+form-filling                                           3fa8fa    6-7   settled at an earlier step
+gcc-compiler-optimization                              30457c      0   1/6    16.7% [  1.9,  55.8]           pass
+gcc-compiler-optimization                              30457c      1   2/6    33.3% [  7.7,  71.4]           pass
+gcc-compiler-optimization                              30457c      2   4/6    66.7% [ 28.6,  92.3]           pass
+gcc-compiler-optimization                              30457c      3   4/6    66.7% [ 28.6,  92.3]           pass
+git-leak-recovery                                      778938      0   6/6   100.0% [ 67.0, 100.0]           pass
+git-leak-recovery                                      778938    1-5   settled at an earlier step
+git-multibranch                                        f64072      0   5/6    83.3% [ 44.2,  98.1]           pass
+git-multibranch                                        f64072      1   4/6    66.7% [ 28.6,  92.3]           pass
+git-multibranch                                        f64072      2   3/6    50.0% [ 16.7,  83.3]           pass
+git-multibranch                                        f64072      3   not measured, over --max-states
+git-multibranch                                        f64072      4   6/6   100.0% [ 67.0, 100.0]           pass
+git-multibranch                                        f64072    5-6   settled at an earlier step
+html-finance-verify                                    c59110      0   5/6    83.3% [ 44.2,  98.1]           pass
+html-finance-verify                                    c59110      1   not measured, over --max-states
+html-finance-verify                                    c59110      2   5/6    83.3% [ 44.2,  98.1]           pass
+html-finance-verify                                    c59110      3   not measured, over --max-states
+html-finance-verify                                    c59110      4   5/6    83.3% [ 44.2,  98.1]           pass
+html-finance-verify                                    c59110    5-6   not measured, over --max-states
+html-finance-verify                                    c59110      7   2/6    33.3% [  7.7,  71.4]           pass
+html-finance-verify                                    c59110      8   not measured, over --max-states
+html-finance-verify                                    c59110      9   5/6    83.3% [ 44.2,  98.1]           pass
+html-finance-verify                                    c59110     10   not measured, over --max-states
+html-finance-verify                                    c59110     11   3/6    50.0% [ 16.7,  83.3]           pass
+huarong-dao-solver                                     892541      0   6/6   100.0% [ 67.0, 100.0]           pass
+huarong-dao-solver                                     892541    1-4   settled at an earlier step
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      0   0/6     0.0% [  0.0,  33.0]           fail
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      1   not measured, over --max-states
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      2   settled at an earlier step
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      3   not measured, over --max-states
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      4   settled at an earlier step
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928    5-6   not measured, over --max-states
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      7   settled at an earlier step
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      8   not measured, over --max-states
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928      9   settled at an earlier step
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928     10   not measured, over --max-states
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928     11   settled at an earlier step
+incompatible-python-fasttext                           72eeff      0   3/6    50.0% [ 16.7,  83.3]           pass
+incompatible-python-fasttext                           72eeff    1-5   not measured, over --max-states
+incompatible-python-fasttext                           72eeff      6   6/6   100.0% [ 67.0, 100.0]           pass
+incompatible-python-fasttext                           72eeff   7-11   not measured, over --max-states
+incompatible-python-fasttext                           72eeff     12   settled at an earlier step
+incompatible-python-fasttext                           72eeff   13-17   not measured, over --max-states
+incompatible-python-fasttext                           72eeff     18   settled at an earlier step
+incompatible-python-fasttext                           72eeff   19-23   not measured, over --max-states
+incompatible-python-fasttext                           72eeff     24   settled at an earlier step
+incompatible-python-fasttext                           72eeff   25-29   not measured, over --max-states
+incompatible-python-fasttext                           72eeff     30   settled at an earlier step
+kv-store-grpc                                          17bbf8      0   6/6   100.0% [ 67.0, 100.0]           pass
+kv-store-grpc                                          17bbf8    1-5   settled at an earlier step
+largest-eigenval                                       ce7830      0   6/6   100.0% [ 67.0, 100.0]           pass
+largest-eigenval                                       ce7830      1   settled at an earlier step
+largest-eigenval                                       ce7830      2   not measured, over --max-states
+largest-eigenval                                       ce7830    3-4   settled at an earlier step
+largest-eigenval                                       ce7830      5   not measured, over --max-states
+largest-eigenval                                       ce7830    6-7   settled at an earlier step
+log-summary-date-ranges                                c20ca7      0   1/6    16.7% [  1.9,  55.8]           pass
+log-summary-date-ranges                                c20ca7      1   0/6     0.0% [  0.0,  33.0]           pass
+log-summary-date-ranges                                c20ca7      2   0/6     0.0% [  0.0,  33.0]           pass
+log-summary-date-ranges                                c20ca7      3   0/6     0.0% [  0.0,  33.0]           pass
+mailman                                                744b92      0   0/6     0.0% [  0.0,  33.0]           fail
+mailman                                                744b92    1-4   not measured, over --max-states
+mailman                                                744b92      5   settled at an earlier step
+mailman                                                744b92    6-9   not measured, over --max-states
+mailman                                                744b92     10   settled at an earlier step
+mailman                                                744b92   11-13   not measured, over --max-states
+mailman                                                744b92     14   settled at an earlier step
+mailman                                                744b92   15-18   not measured, over --max-states
+mailman                                                744b92     19   settled at an earlier step
+mailman                                                744b92   20-23   not measured, over --max-states
+mailman                                                744b92     24   settled at an earlier step
+merge-diff-arc-agi-task                                3af4ee      0   6/6   100.0% [ 67.0, 100.0]           pass
+merge-diff-arc-agi-task                                3af4ee    1-2   not measured, over --max-states
+merge-diff-arc-agi-task                                3af4ee      3   settled at an earlier step
+merge-diff-arc-agi-task                                3af4ee    4-5   not measured, over --max-states
+merge-diff-arc-agi-task                                3af4ee      6   settled at an earlier step
+merge-diff-arc-agi-task                                3af4ee    7-8   not measured, over --max-states
+merge-diff-arc-agi-task                                3af4ee      9   settled at an earlier step
+merge-diff-arc-agi-task                                3af4ee   10-11   not measured, over --max-states
+merge-diff-arc-agi-task                                3af4ee     12   settled at an earlier step
+merge-diff-arc-agi-task                                3af4ee   13-14   not measured, over --max-states
+merge-diff-arc-agi-task                                3af4ee     15   settled at an earlier step
+modernize-scientific-stack                             013f2e      0   6/6   100.0% [ 67.0, 100.0]           pass
+modernize-scientific-stack                             013f2e    1-4   settled at an earlier step
+nginx-request-logging                                  b26837      0   6/6   100.0% [ 67.0, 100.0]           pass
+nginx-request-logging                                  b26837    1-4   settled at an earlier step
+ode-solver-rk4                                         0f8ec5      0   5/6    83.3% [ 44.2,  98.1]           fail
+ode-solver-rk4                                         0f8ec5      1   5/6    83.3% [ 44.2,  98.1]           fail
+ode-solver-rk4                                         0f8ec5      2   6/6   100.0% [ 67.0, 100.0]           fail
+ode-solver-rk4                                         0f8ec5      3   6/6   100.0% [ 67.0, 100.0]           fail
+openssl-selfsigned-cert                                798a58      0   6/6   100.0% [ 67.0, 100.0]           pass
+openssl-selfsigned-cert                                798a58    1-4   settled at an earlier step
+optimal-transport                                      1240f3      0   0/6     0.0% [  0.0,  33.0]           fail
+optimal-transport                                      1240f3    1-2   settled at an earlier step
+optimal-transport                                      1240f3      3   not measured, over --max-states
+optimal-transport                                      1240f3    4-6   settled at an earlier step
+parallelize-compute-squares                            5adc84      0   6/6   100.0% [ 67.0, 100.0]           pass
+parallelize-compute-squares                            5adc84    1-5   settled at an earlier step
+pcap-to-netflow                                        cc0863      0   0/6     0.0% [  0.0,  33.0]           fail
+pcap-to-netflow                                        cc0863    1-5   settled at an earlier step
+polyglot-c-py                                          d6e5b2      0   5/6    83.3% [ 44.2,  98.1]           pass
+polyglot-c-py                                          d6e5b2      1   4/6    66.7% [ 28.6,  92.3]           pass
+polyglot-c-py                                          d6e5b2      2   6/6   100.0% [ 67.0, 100.0]           pass
+portfolio-optimization                                 57761d      0   6/6   100.0% [ 67.0, 100.0]           pass  (2 unscored)
+portfolio-optimization                                 57761d    1-3   not measured, over --max-states
+portfolio-optimization                                 57761d      4   settled at an earlier step
+portfolio-optimization                                 57761d    5-7   not measured, over --max-states
+portfolio-optimization                                 57761d      8   settled at an earlier step
+portfolio-optimization                                 57761d   9-12   not measured, over --max-states
+portfolio-optimization                                 57761d     13   settled at an earlier step
+portfolio-optimization                                 57761d   14-16   not measured, over --max-states
+portfolio-optimization                                 57761d     17   settled at an earlier step
+portfolio-optimization                                 57761d   18-20   not measured, over --max-states
+portfolio-optimization                                 57761d     21   settled at an earlier step
+protocol-analysis-rs                                   998fb0      0   5/6    83.3% [ 44.2,  98.1]           fail  (5 unscored)
+protocol-analysis-rs                                   998fb0    1-5   not measured, over --max-states
+protocol-analysis-rs                                   998fb0      6   6/6   100.0% [ 67.0, 100.0]           fail  (1 unscored)
+protocol-analysis-rs                                   998fb0   7-11   not measured, over --max-states
+protocol-analysis-rs                                   998fb0     12   2/6    33.3% [  7.7,  71.4]           fail
+protocol-analysis-rs                                   998fb0   13-17   not measured, over --max-states
+protocol-analysis-rs                                   998fb0     18   0/6     0.0% [  0.0,  33.0]           fail
+protocol-analysis-rs                                   998fb0   19-23   not measured, over --max-states
+protocol-analysis-rs                                   998fb0     24   settled at an earlier step
+protocol-analysis-rs                                   998fb0   25-29   not measured, over --max-states
+protocol-analysis-rs                                   998fb0     30   settled at an earlier step
+puzzle-solver                                          11f6f4      0   3/6    50.0% [ 16.7,  83.3]           fail
+puzzle-solver                                          11f6f4      1   4/6    66.7% [ 28.6,  92.3]           fail
+puzzle-solver                                          11f6f4      2   0/6     0.0% [  0.0,  33.0]           fail
+puzzle-solver                                          11f6f4    3-4   settled at an earlier step
+pypi-server                                            bdfcd2      0   6/6   100.0% [ 67.0, 100.0]           pass
+pypi-server                                            bdfcd2    1-2   settled at an earlier step
+pytorch-model-cli                                      6963ee      0   6/6   100.0% [ 67.0, 100.0]           pass
+pytorch-model-cli                                      6963ee      1   settled at an earlier step
+pytorch-model-cli                                      6963ee      2   not measured, over --max-states
+pytorch-model-cli                                      6963ee    3-4   settled at an earlier step
+pytorch-model-cli                                      6963ee      5   not measured, over --max-states
+pytorch-model-cli                                      6963ee    6-7   settled at an earlier step
+raman-fitting                                          397e04      0   0/6     0.0% [  0.0,  33.0]           fail
+raman-fitting                                          397e04    1-2   not measured, over --max-states
+raman-fitting                                          397e04      3   settled at an earlier step
+raman-fitting                                          397e04      4   not measured, over --max-states
+raman-fitting                                          397e04      5   settled at an earlier step
+raman-fitting                                          397e04    6-7   not measured, over --max-states
+raman-fitting                                          397e04      8   settled at an earlier step
+raman-fitting                                          397e04      9   not measured, over --max-states
+raman-fitting                                          397e04     10   settled at an earlier step
+raman-fitting                                          397e04   11-12   not measured, over --max-states
+raman-fitting                                          397e04     13   settled at an earlier step
+regex-log                                              6fcc4c      0   5/6    83.3% [ 44.2,  98.1]           pass
+regex-log                                              6fcc4c      1   3/6    50.0% [ 16.7,  83.3]           pass
+regex-log                                              6fcc4c      2   6/6   100.0% [ 67.0, 100.0]           pass
+sanitize-git-repo                                      3e9d67      0   5/6    83.3% [ 44.2,  98.1]           fail
+sanitize-git-repo                                      3e9d67      1   6/6   100.0% [ 67.0, 100.0]           fail
+sanitize-git-repo                                      3e9d67      2   6/6   100.0% [ 67.0, 100.0]           fail
+sanitize-git-repo                                      3e9d67      3   6/6   100.0% [ 67.0, 100.0]           fail
+sanitize-git-repo                                      3e9d67      4   6/6   100.0% [ 67.0, 100.0]           fail
+sanitize-git-repo                                      3e9d67      5   5/6    83.3% [ 44.2,  98.1]           fail
+solve-maze-challenge                                   baa9ec      0   0/6     0.0% [  0.0,  33.0]           fail
+solve-maze-challenge                                   baa9ec    1-4   settled at an earlier step
+solve-sudoku                                           2a60d4      0   4/6    66.7% [ 28.6,  92.3]           fail
+solve-sudoku                                           2a60d4    1-5   not measured, over --max-states
+solve-sudoku                                           2a60d4      6   3/6    50.0% [ 16.7,  83.3]           fail
+solve-sudoku                                           2a60d4   7-11   not measured, over --max-states
+solve-sudoku                                           2a60d4     12   2/6    33.3% [  7.7,  71.4]           fail
+solve-sudoku                                           2a60d4   13-17   not measured, over --max-states
+solve-sudoku                                           2a60d4     18   1/6    16.7% [  1.9,  55.8]           fail
+solve-sudoku                                           2a60d4   19-23   not measured, over --max-states
+solve-sudoku                                           2a60d4     24   1/6    16.7% [  1.9,  55.8]           fail
+solve-sudoku                                           2a60d4   25-29   not measured, over --max-states
+solve-sudoku                                           2a60d4     30   0/6     0.0% [  0.0,  33.0]           fail
+sparql-professors-universities                         df2f7c      0   6/6   100.0% [ 67.0, 100.0]           pass
+sparql-professors-universities                         df2f7c    1-2   settled at an earlier step
+sparql-professors-universities                         df2f7c      3   not measured, over --max-states
+sparql-professors-universities                         df2f7c    4-6   settled at an earlier step
+sqlite-db-truncate                                     e080cc      0   6/6   100.0% [ 67.0, 100.0]           pass
+sqlite-db-truncate                                     e080cc      1   not measured, over --max-states
+sqlite-db-truncate                                     e080cc    2-3   settled at an earlier step
+sqlite-db-truncate                                     e080cc      4   not measured, over --max-states
+sqlite-db-truncate                                     e080cc    5-6   settled at an earlier step
+sqlite-db-truncate                                     e080cc      7   not measured, over --max-states
+sqlite-db-truncate                                     e080cc      8   settled at an earlier step
+sqlite-with-gcov                                       cbd4b7      0   6/6   100.0% [ 67.0, 100.0]           pass
+sqlite-with-gcov                                       cbd4b7      1   not measured, over --max-states
+sqlite-with-gcov                                       cbd4b7      2   settled at an earlier step
+sqlite-with-gcov                                       cbd4b7      3   not measured, over --max-states
+sqlite-with-gcov                                       cbd4b7    4-5   settled at an earlier step
+sqlite-with-gcov                                       cbd4b7      6   not measured, over --max-states
+sqlite-with-gcov                                       cbd4b7      7   settled at an earlier step
+sqlite-with-gcov                                       cbd4b7      8   not measured, over --max-states
+sqlite-with-gcov                                       cbd4b7      9   settled at an earlier step
+swe-bench-fsspec                                       547087      0   4/6    66.7% [ 28.6,  92.3]           pass
+swe-bench-fsspec                                       547087      1   not measured, over --max-states
+swe-bench-fsspec                                       547087      2   5/6    83.3% [ 44.2,  98.1]           pass
+swe-bench-fsspec                                       547087      3   not measured, over --max-states
+swe-bench-fsspec                                       547087      4   2/6    33.3% [  7.7,  71.4]           pass
+swe-bench-fsspec                                       547087    5-6   not measured, over --max-states
+swe-bench-fsspec                                       547087      7   6/6   100.0% [ 67.0, 100.0]           pass
+swe-bench-fsspec                                       547087      8   not measured, over --max-states
+swe-bench-fsspec                                       547087      9   settled at an earlier step
+swe-bench-fsspec                                       547087     10   not measured, over --max-states
+swe-bench-fsspec                                       547087     11   settled at an earlier step
+swe-bench-langcodes                                    911380      0   6/6   100.0% [ 67.0, 100.0]           pass
+swe-bench-langcodes                                    911380      1   not measured, over --max-states
+swe-bench-langcodes                                    911380      2   settled at an earlier step
+swe-bench-langcodes                                    911380      3   not measured, over --max-states
+swe-bench-langcodes                                    911380    4-5   settled at an earlier step
+swe-bench-langcodes                                    911380      6   not measured, over --max-states
+swe-bench-langcodes                                    911380      7   settled at an earlier step
+swe-bench-langcodes                                    911380      8   not measured, over --max-states
+swe-bench-langcodes                                    911380      9   settled at an earlier step
+train-bpe-tokenizer                                    a97871      0   6/6   100.0% [ 67.0, 100.0]           pass
+train-bpe-tokenizer                                    a97871      1   settled at an earlier step
+train-bpe-tokenizer                                    a97871      2   not measured, over --max-states
+train-bpe-tokenizer                                    a97871    3-4   settled at an earlier step
+train-bpe-tokenizer                                    a97871      5   not measured, over --max-states
+train-bpe-tokenizer                                    a97871    6-7   settled at an earlier step
+tree-directory-parser                                  95415a      0   5/6    83.3% [ 44.2,  98.1]           fail
+tree-directory-parser                                  95415a      1   4/6    66.7% [ 28.6,  92.3]           fail
+tree-directory-parser                                  95415a      2   6/6   100.0% [ 67.0, 100.0]           fail
+tune-mjcf                                              29413c      0   5/6    83.3% [ 44.2,  98.1]           pass
+tune-mjcf                                              29413c      1   not measured, over --max-states
+tune-mjcf                                              29413c      2   5/6    83.3% [ 44.2,  98.1]           pass
+tune-mjcf                                              29413c      3   not measured, over --max-states
+tune-mjcf                                              29413c      4   4/6    66.7% [ 28.6,  92.3]           pass
+tune-mjcf                                              29413c    5-6   not measured, over --max-states
+tune-mjcf                                              29413c      7   6/6   100.0% [ 67.0, 100.0]           pass
+tune-mjcf                                              29413c      8   not measured, over --max-states
+tune-mjcf                                              29413c      9   settled at an earlier step
+tune-mjcf                                              29413c     10   not measured, over --max-states
+tune-mjcf                                              29413c     11   settled at an earlier step
+vulnerable-secret                                      3f0770      0   5/6    83.3% [ 44.2,  98.1]           pass
+vulnerable-secret                                      3f0770      1   6/6   100.0% [ 67.0, 100.0]           pass
+vulnerable-secret                                      3f0770      2   not measured, over --max-states
+vulnerable-secret                                      3f0770    3-4   settled at an earlier step
+vulnerable-secret                                      3f0770      5   not measured, over --max-states
+vulnerable-secret                                      3f0770    6-7   settled at an earlier step
+wasm-pipeline                                          55777e      0   4/6    66.7% [ 28.6,  92.3]           pass
+wasm-pipeline                                          55777e      1   4/6    66.7% [ 28.6,  92.3]           pass
+wasm-pipeline                                          55777e      2   5/6    83.3% [ 44.2,  98.1]           pass
+wasm-pipeline                                          55777e      3   not measured, over --max-states
+wasm-pipeline                                          55777e      4   6/6   100.0% [ 67.0, 100.0]           pass
+wasm-pipeline                                          55777e    5-6   settled at an earlier step
+weighted-max-sat-solver                                dc2d14      0   6/6   100.0% [ 67.0, 100.0]           pass
+weighted-max-sat-solver                                dc2d14    1-2   not measured, over --max-states
+weighted-max-sat-solver                                dc2d14      3   settled at an earlier step
+weighted-max-sat-solver                                dc2d14    4-5   not measured, over --max-states
+weighted-max-sat-solver                                dc2d14      6   settled at an earlier step
+weighted-max-sat-solver                                dc2d14      7   not measured, over --max-states
+weighted-max-sat-solver                                dc2d14      8   settled at an earlier step
+weighted-max-sat-solver                                dc2d14   9-10   not measured, over --max-states
+weighted-max-sat-solver                                dc2d14     11   settled at an earlier step
+weighted-max-sat-solver                                dc2d14   12-13   not measured, over --max-states
+weighted-max-sat-solver                                dc2d14     14   settled at an earlier step
+winning-avg-corewars                                   81babd      0   4/6    66.7% [ 28.6,  92.3]           pass
+winning-avg-corewars                                   81babd    1-2   not measured, over --max-states
+winning-avg-corewars                                   81babd      3   2/6    33.3% [  7.7,  71.4]           pass
+winning-avg-corewars                                   81babd    4-6   not measured, over --max-states
+winning-avg-corewars                                   81babd      7   0/6     0.0% [  0.0,  33.0]           pass
+winning-avg-corewars                                   81babd    8-9   not measured, over --max-states
+winning-avg-corewars                                   81babd     10   6/6   100.0% [ 67.0, 100.0]           pass
+winning-avg-corewars                                   81babd   11-13   not measured, over --max-states
+winning-avg-corewars                                   81babd     14   settled at an earlier step
+winning-avg-corewars                                   81babd   15-16   not measured, over --max-states
+winning-avg-corewars                                   81babd     17   settled at an earlier step
+
+200 state(s) were snapshotted but have no scored continuation yet (the run stopped first, or is still going); --all lists them
+
+outcome variance before the first step, over 62 tasks: 56.1% is which task it is, 43.9% is left to the run; 26 task(s) had a mixed result at step 0
+
+share of the outcome decided by step (bootstrap over tasks, trunks, continuations):
+  step  0:   0.0%  [  0.0,   0.0]
+  step  1:  10.7%  [-19.2,  38.1]
+  step  2:  39.1%  [ 10.0,  65.2]
+  step  3:  40.1%  [ 10.8,  67.1]
+  step  4:  47.9%  [ 22.7,  71.6]
+  step  5:  48.7%  [ 21.9,  73.0]
+  step  6:  60.9%  [ 33.5,  83.3]
+  step  7:  76.5%  [ 52.6,  94.9]
+  step  8:  78.1%  [ 55.6,  96.0]
+  step  9:  83.5%  [ 63.4, 100.0]
+  step 10:  84.6%  [ 64.7, 100.0]
+  step 11:  83.7%  [ 62.6, 100.0]
+  step 12:  87.5%  [ 68.3, 100.0]
+  step 13:  87.5%  [ 68.3, 100.0]
+  step 14:  87.5%  [ 68.3, 100.0]
+  step 15:  87.5%  [ 68.3, 100.0]
+  step 16:  87.5%  [ 68.3, 100.0]
+  step 17:  87.5%  [ 68.3, 100.0]
+  step 18:  94.4%  [ 81.1, 100.0]
+  step 19:  96.9%  [ 86.8, 100.0]
+  step 20:  96.9%  [ 86.8, 100.0]
+  step 21:  96.9%  [ 86.8, 100.0]
+  step 22:  96.9%  [ 86.8, 100.0]
+  step 23:  96.9%  [ 86.8, 100.0]
+  step 24:  96.9%  [ 87.3, 100.0]
+  step 25:  96.9%  [ 87.3, 100.0]
+  step 26:  96.9%  [ 87.3, 100.0]
+  step 27:  96.9%  [ 87.3, 100.0]
+  step 28:  96.9%  [ 87.3, 100.0]
+  step 29:  96.9%  [ 87.3, 100.0]
+  step 30: 100.0%  [100.0, 100.0]
+
+branch points: 840; fork call median 2343 ms, max 434119 ms
