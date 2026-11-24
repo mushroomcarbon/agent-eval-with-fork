@@ -248,27 +248,33 @@ class ClaudeCodePolicy:
         """True when the runner should start nothing new."""
         return bool(self._at(True))
 
-    async def _call(self, prompt: str) -> dict[str, Any]:
+    async def ask(self, prompt: str, *, system: str, schema: dict[str, Any]) -> tuple[Any, Usage]:
+        """One call with another system prompt and answer schema (the judge's question).
+        Returns the structured answer (None if the model gave none) and the tokens used."""
+        reply = await self._call(prompt, system=system, schema=schema)
+        return reply.get("structured_output"), _cli_usage(reply)
+
+    async def _call(self, prompt: str, *, system: str = "", schema: dict[str, Any] | None = None) -> dict[str, Any]:
         full = self._at(False)
         if full:
             raise BudgetExceeded(f"subscription usage {full} reached its limit "
                                  f"({self._max_plan_use:.2f}; weekly {self._max_week_use:.2f})")
         for wait in (*self.RETRY_WAITS, None):
             try:
-                return await self._call_once(prompt)
+                return await self._call_once(prompt, system or _CLI_SYSTEM_PROMPT, schema or _ACTION_SCHEMA)
             except RuntimeError:
                 if wait is None:
                     raise
                 await asyncio.sleep(wait)
         raise AssertionError("unreachable")
 
-    async def _call_once(self, prompt: str) -> dict[str, Any]:
+    async def _call_once(self, prompt: str, system: str, schema: dict[str, Any]) -> dict[str, Any]:
         args = [
             self._binary, "-p", "--model", self.model,
-            "--system-prompt", _CLI_SYSTEM_PROMPT,
+            "--system-prompt", system,
             "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
             # The event stream, not the single result object: it also carries the subscription's usage.
-            "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(_ACTION_SCHEMA),
+            "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(schema),
         ]
         async with self._slots:
             proc = await asyncio.create_subprocess_exec(

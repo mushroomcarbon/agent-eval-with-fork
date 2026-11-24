@@ -14,19 +14,21 @@ import sys
 from pathlib import Path
 
 from .env import SandboxFactory
-from .policy import AnthropicPolicy, ClaudeCodePolicy, GatesPolicy, Policy
+from .decisive import JUDGE_SCHEMA, JUDGE_SYSTEM, Move, biggest_move, judge_prompt, nonzero_exits
+from .policy import AnthropicPolicy, BudgetExceeded as _Spent, ClaudeCodePolicy, GatesPolicy, Policy
 from .runner import BudgetExceeded, Runner, schedule
 from .stats import State, bootstrap_decided, decided_by_step, jeffreys_interval, variance_at_start
 from .store import Store
 from .tasks import Task, load_tasks
 
 
-def _policy(args: argparse.Namespace) -> Policy:
+def _policy(args: argparse.Namespace, model: str | None = None) -> Policy:
+    model = model or args.model
     if args.policy == "gates":
         return GatesPolicy([float(x) for x in args.gates.split(",")])
     if args.policy == "claude-code":
-        return ClaudeCodePolicy(args.model, max_plan_use=args.max_plan_use, max_week_use=args.max_week_use)
-    return AnthropicPolicy(args.model)
+        return ClaudeCodePolicy(model, max_plan_use=args.max_plan_use, max_week_use=args.max_week_use)
+    return AnthropicPolicy(model)
 
 
 def _tasks(args: argparse.Namespace) -> list[Task]:
@@ -77,9 +79,15 @@ async def _run(args: argparse.Namespace) -> int:
     tasks = _tasks(args)
     store = Store(Path(args.data))
     policy = _policy(args)
+    swap = _policy(args, args.swap_model) if args.swap_model else None
+    if swap is not None and not args.bisect:
+        raise SystemExit("--swap-model needs --bisect (it continues the states the bisection finds)")
+    if args.swap_k > args.k:
+        raise SystemExit("--swap-k cannot be more than -k")
     runner = Runner(factory=SandboxFactory(), policy=policy, store=store, experiment=args.experiment,
                     max_tokens=args.max_tokens, concurrency=args.concurrency, max_sandboxes=args.max_sandboxes,
-                    keep_seconds=round(args.keep_hours * 3600))
+                    keep_seconds=round(args.keep_hours * 3600), swap_policy=swap, swap_k=args.swap_k,
+                    confirm_k=args.confirm_k)
     # --trunks and --fresh are targets, not increments: running the same command again after an
     # interruption adds only what is missing. A trunk that a budget stopped after it had finished
     # is resumed from the snapshots kept on the platform; one that died earlier is not continued
@@ -93,10 +101,11 @@ async def _run(args: argparse.Namespace) -> int:
         have_trunks, have_fresh = done.get(task.id, (0, 0))
         missing = max(0, args.trunks - have_trunks)
         if missing and task.id in kept:
-            resumes.append(runner.resume(task, kept[task.id], k=args.k, adaptive=args.adaptive))
+            resumes.append(runner.resume(task, kept[task.id], k=args.k, adaptive=args.adaptive, bisect=args.bisect,
+                                         max_states=args.max_states))
             missing -= 1
         jobs += [runner.trunk(task, k=args.k, branch_at=schedule(args.schedule), adaptive=args.adaptive,
-                              max_states=args.max_states) for _ in range(missing)]
+                              max_states=args.max_states, bisect=args.bisect) for _ in range(missing)]
         jobs += [runner.fresh(task) for _ in range(max(0, args.fresh - have_fresh))]
     jobs = resumes + jobs  # unfinished work first
     if any(done.get(t.id) for t in tasks) or resumes:
@@ -111,7 +120,8 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"{len(results) - len(failed)}/{len(results)} jobs finished; "
           f"{store.tokens_used(args.experiment)} tokens used in {args.experiment!r}"
           + (f" (${cost:.2f} at list price)" if cost else ""))
-    plan_use = getattr(policy, "plan_use", None)
+    plan_use = dict(getattr(policy, "plan_use", None) or {})
+    plan_use.update(getattr(swap, "plan_use", None) or {})
     if plan_use:
         print("subscription usage now: " + ", ".join(f"{w} {100 * u:.0f}%" for w, u in sorted(plan_use.items())))
     left = store.kept(args.experiment)
@@ -144,6 +154,7 @@ SKIPPED = {
     2: "not snapshotted, no room under the sandbox limit",
     3: "not measured, over --max-states",
     4: "not measured, the kept snapshot was gone",
+    5: "not measured, the bisection did not need it",
 }
 
 
@@ -239,6 +250,156 @@ def _summary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _curve(store: Store, trunk) -> tuple[list[int], list[float | None], list[tuple[int, int]], Move | None]:
+    """A finished trunk's measured states (its own policy's continuations) and its decisive move."""
+    pts = [r for r in store.points(trunk["id"])]
+    res = [store.point_result(r["id"], trunk["policy"]) for r in pts]
+    steps = [r["step"] for r in pts]
+    values = [x / n if n else None for x, n in res]
+    move = biggest_move(steps, values, bool(trunk["outcome"]), trunk["steps"])
+    return steps, values, res, move
+
+
+def _judgeable(store: Store, experiments: list[str]):
+    """Failed trunks with a clear decisive step, and that step."""
+    for e in experiments:
+        for t in store.trunks(e):
+            if t["outcome"]:
+                continue
+            _, _, _, move = _curve(store, t)
+            if move is not None and move.clear:
+                yield e, t, move
+
+
+async def _judge(args: argparse.Namespace) -> int:
+    """Ask judge models which step decided each failed run that has a clear decisive step."""
+    store = Store(Path(args.data))
+    judges = [ClaudeCodePolicy(m, max_plan_use=args.max_plan_use, max_week_use=args.max_week_use)
+              for m in args.model]
+    slots = asyncio.Semaphore(args.concurrency)
+    todo = list(_judgeable(store, args.experiment))
+
+    async def one(t, judge: ClaudeCodePolicy) -> None:
+        if judge.name in store.judgments(t["id"]):
+            return
+        prompt, shown = judge_prompt(store.load_transcript(t["id"]))
+        async with slots:
+            answer, _ = await judge.ask(prompt, system=JUDGE_SYSTEM, schema=JUDGE_SCHEMA)
+        step = answer.get("step") if isinstance(answer, dict) else None
+        reason = str(answer.get("reason", "")) if isinstance(answer, dict) else ""
+        store.add_judgment(t["id"], judge.name, int(step) if isinstance(step, (int, float)) else None, reason, shown)
+
+    results = await asyncio.gather(*(one(t, j) for _, t, _ in todo for j in judges), return_exceptions=True)
+    failed = [r for r in results if isinstance(r, BaseException)]
+    for r in failed[:5]:
+        print(f"{'budget' if isinstance(r, _Spent) else 'error'}: {type(r).__name__}: {str(r)[:300]}", file=sys.stderr)
+    print(f"{len(todo)} failed run(s) with a clear decisive step; {len(results) - len(failed)}/{len(results)} "
+          f"judgments made or already there")
+    return 1 if failed else 0
+
+
+def _frac(x: int, n: int) -> str:
+    if not n:
+        return "  -"
+    lo, hi = jeffreys_interval(x, n)
+    return f"{x}/{n} = {100 * x / n:.0f}% [{100 * lo:.0f}, {100 * hi:.0f}]"
+
+
+def _decisive(args: argparse.Namespace) -> int:
+    """Decisive steps found by forking, what judges said, and the second policy on the same states."""
+    store = Store(Path(args.data))
+    trunks = [(e, t) for e in args.experiment for t in store.trunks(e)]
+    if not trunks:
+        print("no finished trunks")
+        return 1
+    w = max(22, max(len(t["task_id"]) for _, t in trunks))
+    print(f"{'task':<{w}} {'trunk':<7} {'end':<4} {'decisive':>8} {'change':>6}  states measured (step: pass/k)")
+    failed = clear = final = 0
+    hits: dict[str, list[int]] = {}
+    base = {"last step": [0, 0], "first failed command": [0, 0]}
+    chance = 0.0
+    swap_rows = []
+    for e, t in trunks:
+        steps, values, res, move = _curve(store, t)
+        shown = " ".join(f"{s}:{x}/{n}" for s, (x, n) in zip(steps, res) if n)
+        end = "pass" if t["outcome"] else "fail"
+        dec = "-"
+        if move is not None:
+            a = move.actions
+            dec = str(a[0]) if move.single else f"{a[0]}-{a[-1]}"
+        mark = "" if move is None or not move.clear else ("*" if not t["outcome"] else "")
+        print(f"{t['task_id']:<{w}} {t['id'][-6:]:<7} {end:<4} {dec:>8}{mark:1} "
+              f"{'' if move is None else f'{move.change:+.2f}':>6}  {shown}")
+        if t["outcome"]:
+            continue
+        failed += 1
+        if move is None or not move.clear:
+            continue
+        clear += 1
+        truth = move.after
+        if truth == t["steps"] + 1:
+            final += 1
+        messages = store.load_transcript(t["id"])
+        _, n_shown = judge_prompt(messages)
+        chance += 1 / max(1, n_shown)
+        bad = nonzero_exits(messages)
+        guesses = {"last step": n_shown, "first failed command": bad[0] if bad else n_shown}
+        for name, g in guesses.items():
+            base[name][0] += g == truth
+            base[name][1] += 1
+        for judge, j in store.judgments(t["id"]).items():
+            h = hits.setdefault(judge, [0, 0, 0])
+            h[0] += j["step"] == truth
+            h[1] += j["step"] is not None and abs(j["step"] - truth) <= 1
+            h[2] += 1
+            print(f"{'':<{w}}   {judge}: step {j['step']}  ({j['reason'][:110]})")
+    print(f"\n{failed} failed run(s); {clear} with a clear decisive step (marked *: one action, V moves "
+          f"at least 0.5 across it), {final} of them the turn that ended the run")
+    if clear:
+        print("\nwhich step decided the failure, against the step forking found:")
+        for judge, (exact, near, n) in sorted(hits.items()):
+            print(f"  {judge:<28} exact {_frac(exact, n)}   within one step {_frac(near, n)}")
+        for name, (x, n) in base.items():
+            print(f"  {'baseline: ' + name:<28} exact {_frac(x, n)}")
+        print(f"  {'baseline: a step at random':<28} exact {100 * chance / clear:.0f}% expected")
+
+    # The second policy on the same states.
+    rows = [r for e in args.experiment for r in store.by_policy(e)]
+    policies = sorted({r["policy"] for r in rows})
+    if len(policies) < 2:
+        return 0
+    main_of = {t["id"]: t["policy"] for _, t in trunks}
+    moves = {}
+    for _, t in trunks:
+        if not t["outcome"]:
+            _, _, _, m = _curve(store, t)
+            if m is not None and m.clear:
+                moves[t["id"]] = m
+    pooled: dict[tuple[str, str], list[int]] = {}
+    for r in rows:
+        where = None
+        if r["step"] == 0:
+            where = "step 0 (the task as given)"
+        elif r["trunk"] in moves and r["step"] == moves[r["trunk"]].before:
+            where = "just before the decisive step"
+        elif r["trunk"] in moves and r["step"] == moves[r["trunk"]].after:
+            where = "just after the decisive step"
+        if where is None:
+            continue
+        who = "same model" if r["policy"] == main_of.get(r["trunk"]) else r["policy"]
+        agg = pooled.setdefault((where, who), [0, 0])
+        agg[0] += r["passes"]
+        agg[1] += r["n"]
+    print("\nthe same states continued by each model (pooled over states; states of one task are not independent):")
+    for where in ("step 0 (the task as given)", "just before the decisive step", "just after the decisive step"):
+        cells = [(who, x, n) for (wh, who), (x, n) in sorted(pooled.items()) if wh == where]
+        if cells:
+            print(f"  {where}")
+            for who, x, n in cells:
+                print(f"    {who:<28} {_frac(x, n)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="forkeval")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -274,6 +435,17 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-states", type=int,
                      help="measure at most this many states of a trunk, evenly spaced from its first snapshot to "
                           "its last; the others are recorded as skipped")
+    run.add_argument("--bisect", action="store_true",
+                     help="measure the states that find each trunk's decisive step: the first and the last, then "
+                          "halving the biggest move in value until it is one action wide (--max-states caps them)")
+    run.add_argument("--swap-model",
+                     help="with --bisect: also continue step 0 (once per task) and, for a failed trunk, the states "
+                          "either side of its decisive step with this model")
+    run.add_argument("--swap-k", type=int, default=6, help="continuations per state for --swap-model")
+    run.add_argument("--confirm-k", type=int, default=0,
+                     help="with --bisect: the two states either side of the decisive step get this many "
+                          "continuations each (in batches of at most -k), and the search goes on from the new values")
+    
     run.add_argument("--keep-hours", type=float, default=24,
                      help="when a budget stops a trunk that has finished, keep its unmeasured snapshots on the "
                           "platform this long so the same command can measure them later; 0 deletes them")
@@ -297,6 +469,18 @@ def main(argv: list[str] | None = None) -> int:
     summ.add_argument("--draws", type=int, default=2000)
     summ.add_argument("--all", action="store_true", help="also list states that have no scored continuation yet")
 
+    jdg = sub.add_parser("judge", help="ask judge models which step decided each failed run (needs `claude`)")
+    jdg.add_argument("--experiment", action="append", required=True)
+    jdg.add_argument("--model", action="append", required=True, help="judge model; may be given more than once")
+    jdg.add_argument("--data", default="data")
+    jdg.add_argument("--concurrency", type=int, default=4)
+    jdg.add_argument("--max-plan-use", type=float, default=0.6)
+    jdg.add_argument("--max-week-use", type=float, default=0.6)
+
+    dec = sub.add_parser("decisive", help="decisive steps from forks, the judges' answers, and the swap results")
+    dec.add_argument("--experiment", action="append", required=True)
+    dec.add_argument("--data", default="data")
+
     args = ap.parse_args(argv)
     if args.cmd == "run":
         return asyncio.run(_run(args))
@@ -304,6 +488,10 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_check(args))
     if args.cmd == "drop":
         return asyncio.run(_drop(args))
+    if args.cmd == "judge":
+        return asyncio.run(_judge(args))
+    if args.cmd == "decisive":
+        return _decisive(args)
     return _summary(args)
 
 

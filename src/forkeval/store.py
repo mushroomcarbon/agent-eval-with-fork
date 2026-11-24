@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS branch_points (
     true_value  REAL,
     created_at  REAL NOT NULL
 );
+-- a judge model's answer to "which step decided this failed run?"
+CREATE TABLE IF NOT EXISTS judgments (
+    trunk       TEXT NOT NULL REFERENCES runs(id),
+    judge       TEXT NOT NULL,
+    step        INTEGER,
+    reason      TEXT,
+    steps_shown INTEGER NOT NULL,
+    created_at  REAL NOT NULL,
+    PRIMARY KEY (trunk, judge)
+);
 CREATE INDEX IF NOT EXISTS runs_experiment ON runs (experiment, task_id, kind);
 CREATE INDEX IF NOT EXISTS runs_bp ON runs (branch_point);
 """
@@ -66,7 +76,7 @@ class Store:
         if "cost_usd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(runs)")}:
             self.db.execute("ALTER TABLE runs ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0")
         if "skipped" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
-            # 1: the adaptive schedule chose not to run continuations from this state; 2: no room to snapshot it
+            # why no continuations were run from this state: runner.SETTLED, NO_ROOM, OVER_LIMIT, LOST, UNNEEDED
             self.db.execute("ALTER TABLE branch_points ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
         if "kept" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
             # 1: the snapshot was left on the platform when a budget stopped the run, to be measured later
@@ -148,11 +158,51 @@ class Store:
         row = self.db.execute("SELECT outcome FROM runs WHERE id = ?", (run_id,)).fetchone()
         return None if row is None or row["outcome"] is None else bool(row["outcome"])
 
-    def point_result(self, bp_id: str) -> tuple[int, int]:
-        """(passes, scored continuations) of one branch point."""
+    def point_result(self, bp_id: str, policy: str | None = None) -> tuple[int, int]:
+        """(passes, scored continuations) of one branch point; with `policy`, only that policy's continuations."""
         row = self.db.execute("SELECT COALESCE(SUM(outcome), 0) AS x, COUNT(outcome) AS n FROM runs "
-                              "WHERE branch_point = ? AND kind = 'cont'", (bp_id,)).fetchone()
+                              "WHERE branch_point = ? AND kind = 'cont' AND (? IS NULL OR policy = ?)",
+                              (bp_id, policy, policy)).fetchone()
         return int(row["x"]), int(row["n"])
+
+    def start_result(self, experiment: str, task_id: str, policy: str) -> tuple[int, int]:
+        """(passes, scored continuations) of one policy from the step-0 states of a task's trunks:
+        every trunk of a task starts from the same state, so one set of these is enough per task."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(c.outcome), 0) AS x, COUNT(c.outcome) AS n FROM runs c "
+            "JOIN branch_points bp ON bp.id = c.branch_point JOIN runs t ON t.id = bp.trunk "
+            "WHERE t.experiment = ? AND t.task_id = ? AND bp.step = 0 AND c.kind = 'cont' AND c.policy = ?",
+            (experiment, task_id, policy)).fetchone()
+        return int(row["x"]), int(row["n"])
+
+    def by_policy(self, experiment: str) -> list[sqlite3.Row]:
+        """Per branch point and continuation policy: passes and count."""
+        return self.db.execute(
+            """
+            SELECT t.task_id, bp.trunk, bp.id AS branch_point, bp.step, c.policy,
+                   COUNT(c.outcome) AS n, COALESCE(SUM(c.outcome), 0) AS passes
+              FROM branch_points bp JOIN runs t ON t.id = bp.trunk
+              JOIN runs c ON c.branch_point = bp.id AND c.kind = 'cont'
+             WHERE t.experiment = ?
+             GROUP BY bp.id, c.policy
+             ORDER BY t.task_id, t.started_at, bp.step
+            """, (experiment,)).fetchall()
+
+    def trunks(self, experiment: str) -> list[sqlite3.Row]:
+        """Finished trunks, oldest first."""
+        return self.db.execute(
+            "SELECT id, task_id, policy, outcome, steps, stop FROM runs "
+            "WHERE experiment = ? AND kind = 'trunk' AND outcome IS NOT NULL ORDER BY started_at",
+            (experiment,)).fetchall()
+
+    # -- judgments ----------------------------------------------------------------
+
+    def add_judgment(self, trunk: str, judge: str, step: int | None, reason: str, steps_shown: int) -> None:
+        self.db.execute("INSERT OR REPLACE INTO judgments (trunk, judge, step, reason, steps_shown, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)", (trunk, judge, step, reason, steps_shown, time.time()))
+
+    def judgments(self, trunk: str) -> dict[str, sqlite3.Row]:
+        return {r["judge"]: r for r in self.db.execute("SELECT * FROM judgments WHERE trunk = ?", (trunk,))}
 
     def tokens_used(self, experiment: str) -> int:
         row = self.db.execute(
@@ -176,7 +226,7 @@ class Store:
                    bp.fork_ms, bp.suspend_ms, bp.skipped
               FROM branch_points bp
               JOIN runs t ON t.id = bp.trunk
-              LEFT JOIN runs c ON c.branch_point = bp.id AND c.kind = 'cont'
+              LEFT JOIN runs c ON c.branch_point = bp.id AND c.kind = 'cont' AND c.policy = t.policy
              WHERE t.experiment = ?
              GROUP BY bp.id
              ORDER BY t.task_id, t.started_at, bp.step
