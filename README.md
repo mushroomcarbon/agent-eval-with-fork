@@ -25,7 +25,9 @@ anything into).
 | Validated | `results/stage0-validation-gates.txt`: 16 trunks, 64 branch points, 384 continuations, 36 fresh runs. True V inside the 95% interval at 64 of 64 states; decided-by-step 34% [2, 61] and 77% [53, 96] against true 25% and 80%; step-0 forks 42/96 and fresh runs 14/36 against a true pass rate of 50.4% |
 | Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
 | Since then | the Terminal-Bench adapter, the adaptive schedule, a cap on states per trunk, resuming a trunk that a budget stopped |
-| Not yet | a run through the API policy, the report page |
+| Medium tasks | `results/medium1-claude-code-haiku.txt`: 62 Terminal-Bench tasks, Haiku through `claude -p`, one trunk each |
+| In progress | decisive steps (`--bisect`), judges scored against them (`forkeval judge`), a second model on the same states (`--swap-model`) |
+| Not yet | a run through the API policy |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
 the filesystem but not the process would fail every test.
@@ -105,6 +107,37 @@ holds 21 of them. `--max-sandboxes` (default 45) keeps a run inside that limit: 
 and its k continuations, and takes room for branch points as it goes. A step that finds none within two minutes
 is recorded as not snapshotted, and the run goes on.
 
+## The step that decided a run
+
+A failed run has a point after which it was unlikely to succeed. Forks can find it: V is high in one state and low
+in the next, so the action between them decided the run. The run's own end counts as one more point, so a run that
+stopped while every fork from its last state went on to pass is decided by the turn that ended it.
+
+`--bisect` measures the states that find that action, not all of them: the first and the last, then the state in the
+middle of the biggest move towards the outcome, until the move is between neighbouring steps (about 2 + log2 T
+states, capped by `--max-states`). `--confirm-k 12` gives the two states either side of it 12 continuations each,
+since 6 a side can make a move out of noise, and the search goes on if the move shifts. Every snapshot is held until
+then, so a trunk holds one sandbox per step. Step 0 is the same state for every trunk of a task and is measured once.
+
+`forkeval judge --model M` shows a judge model each failed run that has a clear decisive step (one action, V moves at
+least 0.5 across it) with numbered steps and asks which step decided the failure; `forkeval decisive` scores the
+answers against the forks, next to baselines (the last step, the first failing command, chance). The two can
+disagree for a good reason: a judge tends to name where a mistake was made, the forks name where it stopped being
+recoverable.
+
+`--swap-model` continues some of the same states with a second model: step 0 (once per task), and the states just
+before and just after each failed run's decisive step. "After Haiku's decisive mistake, how often does Sonnet still
+finish the task?" is a question only an exact copy of the state can ask.
+
+```bash
+.venv/bin/forkeval run ... --bisect --max-states 12 --confirm-k 12 --swap-model claude-sonnet-5-5 --swap-k 6
+.venv/bin/forkeval judge --experiment E --model claude-haiku-5-5 --model claude-sonnet-5-5 --model claude-opus-5-5
+.venv/bin/forkeval decisive --experiment E
+```
+
+The decided-by-step estimator assumes the measured states were not chosen by looking at the data, which the
+bisection does; use it on runs without `--bisect`.
+
 ## Two ways to reach the model
 
 Both are kept, so a result can be reproduced with whichever access a reader has. They are different agents, and
@@ -142,6 +175,7 @@ Needs `zillion-asb` 0.5.0 or later (the first release with `fork`).
 | `src/forkeval/tbench.py` | Tasks in the Terminal-Bench layout: Dockerfile to base image and build steps, tests, reference solution |
 | `src/forkeval/store.py` | SQLite schema and transcripts |
 | `src/forkeval/stats.py` | Jeffreys interval, unbiased `V(1-V)`, decided-by-step, bootstrap. No dependencies |
+| `src/forkeval/decisive.py` | The decisive move along a trunk, which state the bisection measures next, what a judge is shown |
 | `tasks/handwritten/` | Three tasks: a live service to fix, an in-memory queue to drain, a log to summarise (the on-disk control) |
 
 ## How a state is branched
