@@ -255,7 +255,7 @@ class Runner:
     def __init__(self, *, factory: BoxFactory, policy: Policy, store: Store, experiment: str,
                  max_tokens: int | None = None, concurrency: int = 2, max_sandboxes: int = 45,
                  keep_seconds: int = 0, swap_policy: Policy | None = None, swap_k: int = 6,
-                 confirm_k: int = 0) -> None:
+                 confirm_k: int = 0, swap_at: str = "all") -> None:
         self.factory = factory
         self.policy = policy
         #: A second policy that continues some of the first one's states (with --bisect: step 0, once per
@@ -263,6 +263,10 @@ class Runner:
         self.swap_policy = swap_policy
         self.swap_k = swap_k
         self._swap_starts: set[str] = set()
+        #: "all": step 0 and both sides of the decisive step; "after": only the state just after it.
+        if swap_at not in ("all", "after"):
+            raise ValueError(f"swap_at must be 'all' or 'after', not {swap_at!r}")
+        self.swap_at = swap_at
         #: With --bisect: continuations each of the two states either side of the decisive step end up with.
         self.confirm_k = confirm_k
         self.store = store
@@ -594,10 +598,11 @@ class Runner:
             move = biggest_move(steps, values, outcome, trunk_steps)
             targets: set[int] = set()
             if self.swap_policy is not None:
-                if steps and steps[0] == 0 and values[0] is not None:
+                if self.swap_at == "all" and steps and steps[0] == 0 and values[0] is not None:
                     targets.add(0)
                 if not outcome and move is not None and move.clear:
-                    targets |= {i for i, s in enumerate(steps) if s in (move.before, move.after)}
+                    wanted = (move.before, move.after) if self.swap_at == "all" else (move.after,)
+                    targets |= {i for i, s in enumerate(steps) if s in wanted}
             for i, point in enumerate(points):
                 if values[i] is None:
                     self.store.skip_branch_point(point.id, UNNEEDED)

@@ -160,3 +160,14 @@ async def test_a_second_trunk_of_a_task_reuses_step_0(tmp_path):
     assert res[0] == store.start_result("x", "gates", second["policy"]) and res[0][1] == 6
     assert set(store.done("x")) == {"gates"} and store.done("x")["gates"][0] == 2
     assert FakeBox.live == set()
+
+
+async def test_swap_at_after_continues_only_the_state_after_the_decisive_step(tmp_path):
+    FakeBox.live.clear()
+    store = Store(tmp_path)
+    runner = Runner(factory=FakeFactory(), policy=GatesPolicy([1.0, 0.9, 1.0], seed=2), store=store,
+                    experiment="x", swap_policy=GatesPolicy([1.0, 1.0, 1.0]), swap_k=3, swap_at="after")
+    await runner.trunk(TASK, k=6, branch_at=schedule("every"), bisect=True)
+    swapped = {r["step"]: r["n"] for r in store.by_policy("x") if r["policy"] == "gates:1,1,1"}
+    assert swapped == {2: 3}
+    assert FakeBox.live == set()

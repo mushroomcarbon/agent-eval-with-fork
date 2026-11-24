@@ -87,7 +87,7 @@ async def _run(args: argparse.Namespace) -> int:
     runner = Runner(factory=SandboxFactory(), policy=policy, store=store, experiment=args.experiment,
                     max_tokens=args.max_tokens, concurrency=args.concurrency, max_sandboxes=args.max_sandboxes,
                     keep_seconds=round(args.keep_hours * 3600), swap_policy=swap, swap_k=args.swap_k,
-                    confirm_k=args.confirm_k)
+                    confirm_k=args.confirm_k, swap_at=args.swap_at)
     # --trunks and --fresh are targets, not increments: running the same command again after an
     # interruption adds only what is missing. A trunk that a budget stopped after it had finished
     # is resumed from the snapshots kept on the platform; one that died earlier is not continued
@@ -445,6 +445,9 @@ def main(argv: list[str] | None = None) -> int:
                      help="with --bisect: also continue step 0 (once per task) and, for a failed trunk, the states "
                           "either side of its decisive step with this model")
     run.add_argument("--swap-k", type=int, default=6, help="continuations per state for --swap-model")
+    run.add_argument("--swap-at", choices=["all", "after"], default="all",
+                     help="where --swap-model continues: all = step 0 (once per task) and both sides of a failed "
+                          "run's decisive step; after = only the state just after the decisive step")
     run.add_argument("--confirm-k", type=int, default=0,
                      help="with --bisect: the two states either side of the decisive step get this many "
                           "continuations each (in batches of at most -k), and the search goes on from the new values")
