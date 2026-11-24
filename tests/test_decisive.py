@@ -144,3 +144,19 @@ async def test_confirm_k_tops_up_both_sides_of_the_decisive_step(tmp_path):
     n = {r["step"]: r["n"] for r in store.states("x")}
     assert n == {0: 6, 1: 12, 2: 12, 3: 6}
     assert FakeBox.live == set()
+
+
+async def test_a_second_trunk_of_a_task_reuses_step_0(tmp_path):
+    from forkeval.runner import SHARED
+    FakeBox.live.clear()
+    store = Store(tmp_path)
+    runner = Runner(factory=FakeFactory(), policy=GatesPolicy([1.0, 0.9, 1.0], seed=2), store=store, experiment="x")
+    await runner.trunk(TASK, k=6, branch_at=schedule("every"), bisect=True)
+    await runner.trunk(TASK, k=6, branch_at=schedule("every"), bisect=True)
+    first, second = store.trunks("x")
+    zero = [r for r in store.points(second["id"]) if r["step"] == 0][0]
+    assert zero["skipped"] == SHARED and store.point_result(zero["id"])[1] == 0
+    steps, values, res, _ = cli._curve(store, second)
+    assert res[0] == store.start_result("x", "gates", second["policy"]) and res[0][1] == 6
+    assert set(store.done("x")) == {"gates"} and store.done("x")["gates"][0] == 2
+    assert FakeBox.live == set()

@@ -191,7 +191,7 @@ class Store:
     def trunks(self, experiment: str) -> list[sqlite3.Row]:
         """Finished trunks, oldest first."""
         return self.db.execute(
-            "SELECT id, task_id, policy, outcome, steps, stop FROM runs "
+            "SELECT id, experiment, task_id, policy, outcome, steps, stop FROM runs "
             "WHERE experiment = ? AND kind = 'trunk' AND outcome IS NOT NULL ORDER BY started_at",
             (experiment,)).fetchall()
 

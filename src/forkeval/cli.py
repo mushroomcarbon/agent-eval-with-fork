@@ -155,6 +155,7 @@ SKIPPED = {
     3: "not measured, over --max-states",
     4: "not measured, the kept snapshot was gone",
     5: "not measured, the bisection did not need it",
+    6: "measured on another trunk of the task (step 0 is the same state)",
 }
 
 
@@ -253,7 +254,9 @@ def _summary(args: argparse.Namespace) -> int:
 def _curve(store: Store, trunk) -> tuple[list[int], list[float | None], list[tuple[int, int]], Move | None]:
     """A finished trunk's measured states (its own policy's continuations) and its decisive move."""
     pts = [r for r in store.points(trunk["id"])]
-    res = [store.point_result(r["id"], trunk["policy"]) for r in pts]
+    # A step-0 state measured on another trunk of the task (runner.SHARED) has that trunk's result.
+    res = [store.start_result(trunk["experiment"], trunk["task_id"], trunk["policy"]) if r["skipped"] == 6
+           else store.point_result(r["id"], trunk["policy"]) for r in pts]
     steps = [r["step"] for r in pts]
     values = [x / n if n else None for x, n in res]
     move = biggest_move(steps, values, bool(trunk["outcome"]), trunk["steps"])

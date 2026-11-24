@@ -195,7 +195,8 @@ def schedule(spec: str) -> Callable[[int], bool]:
 #: `skipped` values of a branch point: the adaptive schedule did not need it; there was no room to
 #: snapshot it; the trunk had more snapshots than --max-states; a kept snapshot was gone when the run
 #: resumed; the bisection did not need it.
-SETTLED, NO_ROOM, OVER_LIMIT, LOST, UNNEEDED = 1, 2, 3, 4, 5
+#: SHARED: a state at step 0, which every trunk of a task shares, already measured from another trunk.
+SETTLED, NO_ROOM, OVER_LIMIT, LOST, UNNEEDED, SHARED = 1, 2, 3, 4, 5, 6
 
 #: A branch point is a sandbox with a deadline like any other. One that is going to be measured is
 #: given this long from the end of its trunk, enough for every continuation of a long task.
@@ -470,7 +471,7 @@ class Runner:
         finished: its unmeasured branch points were kept on the platform
         (`keep_seconds`), and their states' messages are in the store."""
         async with self._slot():
-            rows = [r for r in self.store.points(trunk_id) if not r["skipped"]]
+            rows = [r for r in self.store.points(trunk_id) if not r["skipped"] or (bisect and r["skipped"] == SHARED)]
             held = sum(1 for r in rows if r["kept"])
             await self._room.take(k + held)
             points: list[_BranchPoint] = []
@@ -559,8 +560,17 @@ class Runner:
                 if point.box is not None and 0 < n < k:
                     await self._run_more(task, point, k - n, self.policy)
                     tried.add(i)
+            # Every trunk of a task starts from the same state: one trunk's step 0 serves them all.
+            shared = None
+            if steps and steps[0] == 0 and self.store.point_result(points[0].id, me)[1] == 0:
+                x, n = self.store.start_result(self.experiment, task.id, me)
+                if n >= k:
+                    shared = (x, n)
+                    self.store.skip_branch_point(points[0].id, SHARED)
             while True:
                 res = [self.store.point_result(p.id, me) for p in points]
+                if shared is not None:
+                    res[0] = shared
                 values = [x / n if n else None for x, n in res]
                 available = [p.box is not None and n == 0 and i not in tried
                              for i, (p, (_, n)) in enumerate(zip(points, res))]
@@ -574,7 +584,8 @@ class Runner:
                 move = biggest_move(steps, values, outcome, trunk_steps)
                 ends = [] if move is None or not move.single else \
                     [j for j, s in enumerate(steps) if s in (move.before, move.after)
-                     and points[j].box is not None and res[j][1] < self.confirm_k and j not in confirmed]
+                     and points[j].box is not None and res[j][1] < self.confirm_k and j not in confirmed
+                     and not (j == 0 and shared is not None)]
                 if not ends:
                     break
                 for j in ends:
@@ -590,6 +601,8 @@ class Runner:
             for i, point in enumerate(points):
                 if values[i] is None:
                     self.store.skip_branch_point(point.id, UNNEEDED)
+                if i == 0 and shared is not None and self.swap_policy is None:
+                    await self._drop(point)
                 if i not in targets:
                     await self._drop(point)
             for i in sorted(targets):
