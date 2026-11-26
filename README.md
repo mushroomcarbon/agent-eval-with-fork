@@ -26,7 +26,8 @@ anything into).
 | Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
 | Since then | the Terminal-Bench adapter, the adaptive schedule, a cap on states per trunk, resuming a trunk that a budget stopped |
 | Medium tasks | `results/medium1-claude-code-haiku.txt`: 62 Terminal-Bench tasks, Haiku through `claude -p`, one trunk each |
-| In progress | decisive steps (`--bisect`), judges scored against them (`forkeval judge`), a second model on the same states (`--swap-model`) |
+| Decisive steps | `results/decisive1-claude-code-haiku.txt`: 86 Haiku trunks on the 26 tasks mixed at step 0, bisected to the step that decided each run; 17 failed runs (with medium1's) have a clear one, scored against three judge models; Sonnet continues Haiku's state just after the decisive step |
+| In progress | more trunks on the tasks that fail, for more clear cases |
 | Not yet | a run through the API policy |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
@@ -126,17 +127,31 @@ disagree for a good reason: a judge tends to name where a mistake was made, the 
 recoverable.
 
 `--swap-model` continues some of the same states with a second model: step 0 (once per task), and the states just
-before and just after each failed run's decisive step. "After Haiku's decisive mistake, how often does Sonnet still
+before and just after each failed run's decisive step (`--swap-at after`: only the state just after, which is the
+question; Sonnet costs about 20 times as much as Haiku per continuation here). "After Haiku's decisive mistake, how often does Sonnet still
 finish the task?" is a question only an exact copy of the state can ask.
 
 ```bash
-.venv/bin/forkeval run ... --bisect --max-states 12 --confirm-k 12 --swap-model claude-sonnet-5-5 --swap-k 6
+.venv/bin/forkeval run ... --bisect --max-states 12 --confirm-k 8 --swap-model claude-sonnet-5-5 --swap-k 6 --swap-at after
 .venv/bin/forkeval judge --experiment E --model claude-haiku-5-5 --model claude-sonnet-5-5 --model claude-opus-5-5
 .venv/bin/forkeval decisive --experiment E
 ```
 
 The decided-by-step estimator assumes the measured states were not chosen by looking at the data, which the
 bisection does; use it on runs without `--bisect`.
+
+First results (`results/decisive1-claude-code-haiku.txt`, interim): of 44 failed Haiku runs, 17 have a clear
+decisive step, and 8 of those are the turn that ended the run: the agent stopped while forks from its last state
+went on to pass. Judges reading the transcript name the same step as the forks in 12/17 (Opus), 11/17 (Sonnet) and
+10/17 (Haiku) cases; "the last step" gets 8/17, "the first failing command" 4/17, chance about 29%. The intervals
+are wide (Opus 47-88%), so judges beat chance and the first-failure rule, but not yet clearly the last-step rule.
+All three judges miss the same 5 cases, and they miss in both directions: twice they name the step where a bug
+went in while forks from after it still passed (the run was lost when the agent stopped without checking), and
+three times they name a later step (the script that produced the final answer, or a later rewrite) while the forks
+put the loss earlier, where the approach that failed was chosen. One of those three comes from medium1, whose states
+had 6 continuations and no confirmation stage. From Haiku's exact state just after its decisive step, Sonnet still finishes 11/30 times
+(37% [21, 54]) and Haiku 8/64 (12% [6, 22]); from just before it, Haiku finishes 79%. Those 30 Sonnet runs come
+from 5 failed trunks.
 
 ## Two ways to reach the model
 

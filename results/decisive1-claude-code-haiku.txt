@@ -1,0 +1,247 @@
+# decisive1: the step that decided each failed run, found by forking, against LLM judges; and Sonnet on Haiku's
+# exact state just after that step. claude-haiku-5-5 trunks through --policy claude-code on the 26 tasks that were
+# mixed at step 0 in medium1 (chess-best-move dropped after two windows for cost; its two finished trunks stay).
+# --bisect --max-states 12, k = 6, the two states around the move topped up with --confirm-k (12 until
+# 2026-11-25, 8 after), --swap-model claude-sonnet-5-5 --swap-k 6 --swap-at after (the pilot trunks used
+# --swap-at all). 3 trunks a task plus the pilot's. 2026-11-24 to 2026-11-25, dev platform, 7 plan windows,
+# 162.6M tokens, $34.13 at the CLI's list-price figure.
+# The judge table pools decisive1 with medium1 (k = 6, no confirmation stage, decisive steps from its states).
+# Judges: claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5 through `claude -p`, one answer each, 2026-11-26.
+# Interim: a top-up of trunks on the tasks that fail is running next; this file is replaced when it lands.
+#
+#   forkeval decisive --experiment decisive1 --experiment medium1
+
+task                                                   trunk   end  decisive change  states measured (step: pass/k)
+sanitize-git-repo                                      63c97d  pass      1-7   +0.00  0:6/6 7:6/6
+puzzle-solver                                          49140d  pass        2   +0.58  0:1/6 1:5/12 2:12/12 5:6/6
+audio-synth-stft-peaks                                 841e46  pass        4   +0.33  0:3/6 3:8/12 4:12/12 5:6/6 7:6/6
+adaptive-rejection-sampler                             cbd195  fail        3*  +0.50  0:4/6 2:6/12 3:0/6 5:0/6
+                                                         claude-code:claude-haiku-5-5: step 3  (Step 3 wrote the entire implementation in one shot, committing to the ars() signature, the default and express)
+                                                         claude-code:claude-opus-5-5: step 3  (Step 3 most likely decided the failure: the agent wrote ars() to return a list (samples, abscissae, n_density_)
+                                                         claude-code:claude-sonnet-5-5: step 3  (Step 3 wrote the whole implementation, including choices such as `ars()` returning a list rather than a plain )
+adaptive-rejection-sampler                             0831f9  pass        2   +0.50  0:3/6 1:1/3 2:5/6 5:6/6
+adaptive-rejection-sampler                             edf326  fail        3   +0.42  0:2/6 2:5/12 3:0/12 5:0/6
+audio-synth-stft-peaks                                 edbebe  pass        4   +0.75  0:3/6 3:3/12 4:12/12 5:6/6 7:6/6
+audio-synth-stft-peaks                                 c33063  pass      4-5   +0.25  0:3/6 2:7/12 3:9/12 5:6/6 11:6/6
+adaptive-rejection-sampler                             840e44  fail        3   +0.42  0:9/18 2:5/12 3:0/6 5:0/6
+adaptive-rejection-sampler                             a9fa56  fail        3   +0.33  0:9/18 2:3/9 3:0/8 5:0/6
+chess-best-move                                        454e02  pass    16-20   +0.75  0:1/6 10:2/6 15:1/4 20:6/6
+chess-best-move                                        bf597c  fail     1-30   +0.17  0:1/6 30:0/6
+adaptive-rejection-sampler                             b160ea  pass        3   +0.38  0:9/18 2:5/8 3:8/8 5:6/6
+code-from-image                                        7e9298  pass      1-5   +0.17  0:5/6 5:6/6
+code-from-image                                        fbcde6  fail        6*  +0.88  0:6/6 5:7/8
+                                                         claude-code:claude-haiku-5-5: step 6  (The hash found in step 5 matches the hinted prefix, so the computed value looks right, but no command in the t)
+                                                         claude-code:claude-opus-5-5: step 6  (The agent had the right hash from step 5 but ended the run claiming it wrote /app/output.txt, when no command )
+                                                         claude-code:claude-sonnet-5-5: step 6  (Step 5 found the digest matching the `bee26a` hint, but the agent ended the run at step 6 claiming it wrote `/)
+code-from-image                                        ef0312  pass     1-14   +0.08  0:11/12 14:6/6
+db-wal-recovery                                        fe3d36  pass      1-5   +0.17  0:5/6 5:6/6
+db-wal-recovery                                        103cad  pass      1-7   +0.17  0:5/6 7:6/6
+db-wal-recovery                                        1d5983  pass      1-4   +0.17  0:10/12 4:6/6
+decommissioning-service-with-sensitive-data            bea487  pass      1-5   +0.00  0:6/6 5:6/6
+decommissioning-service-with-sensitive-data            9dae4b  pass      1-5   +0.00  0:6/6 5:6/6
+decommissioning-service-with-sensitive-data            873320  pass      1-5   +0.00  0:6/6 5:6/6
+dna-insert                                             e3b33c  pass      4-7   +0.33  0:2/6 3:3/6 7:5/6 14:6/6
+dna-insert                                             57c6d4  pass      3-5   +0.33  0:4/6 2:4/6 5:6/6 11:6/6
+dna-insert                                             436399  pass        1   +0.38  0:2/8 1:5/8 2:5/6 5:6/6 10:6/6
+form-filling                                           ddc2c2  pass      1-6   +0.00  0:6/6 6:6/6
+dna-insert                                             2ccc43  pass        1   +0.35  0:8/20 1:6/8 3:5/6 7:6/6
+dna-insert                                             5f2cde  fail        6*  +0.75  0:8/20 3:4/6 5:6/8 6:0/8 7:0/6
+                                                         claude-code:claude-haiku-5-5: step 6  (The script in step 6 fixed the design approach (a single back-to-back pair with the 39-nt insertion placed at )
+                                                         claude-code:claude-opus-5-5: step 6  (Step 6's design script mis-modeled the edit as replacing the template base at position 213 with a 40-nt segmen)
+                                                         claude-code:claude-sonnet-5-5: step 6  (The design script put the 40-nt tail, including the template's own "c", on the forward primer and assumed a 17)
+form-filling                                           555d07  pass      1-6   +0.00  0:6/6 6:6/6
+form-filling                                           f3df1b  pass      1-7   +0.00  0:6/6 7:6/6
+gcc-compiler-optimization                              26438d  fail        1   +0.38  0:6/8 1:3/8 3:0/6
+gcc-compiler-optimization                              2536a1  pass        5   +1.00  0:4/6 4:0/8
+gcc-compiler-optimization                              96d44b  fail        7*  +0.75  0:2/6 6:6/8
+                                                         claude-code:claude-haiku-5-5: step 5  (Step 5 produced the final timing numbers (e.g. -O0 2310.1 ms vs -Os 1296.3 ms vs -O3 507.6 ms) from a single 5)
+                                                         claude-code:claude-opus-5-5: step 4  (Step 4 wrote the final script, which timed each binary over only 5 runs using date stamps; the timings look no)
+                                                         claude-code:claude-sonnet-5-5: step 5  (Step 5 produced the final results (large timings of 500–2300 ms, nearly identical sizes), and the agent accept)
+git-multibranch                                        e4cb96  pass        7   +0.12  0:5/6 6:7/8
+git-multibranch                                        36a748  pass     1-16   +0.17  0:5/6 16:6/6
+git-multibranch                                        fdeff1  pass      1-5   +0.17  0:5/6 5:6/6
+html-finance-verify                                    9fcc08  pass     1-14   +0.17  0:5/6 14:6/6
+html-finance-verify                                    2bfed5  pass     1-10   +0.17  0:5/6 10:6/6
+html-finance-verify                                    e0a08f  pass        9   +0.12  0:6/6 8:7/8
+incompatible-python-fasttext                           fab157  fail        2*  +1.00  0:6/6 1:8/8
+                                                         claude-code:claude-haiku-5-5: step 2  (Step 2 ended the run with no fix, even though step 1 left the key question open: `import fasttext` succeeded u)
+                                                         claude-code:claude-opus-5-5: step 2  (The agent ended the run with only a placeholder message after step 1's diagnostics, so it never fixed fasttext)
+                                                         claude-code:claude-sonnet-5-5: step 2  (The agent ended the run at step 2 without fixing fasttext for /usr/bin/python3, the system python, so nothing )
+incompatible-python-fasttext                           8e30b5  fail     8-11   +0.17  0:6/6 7:6/6 11:5/6 13:4/6 15:3/6 22:2/6 26:1/6 30:0/6
+incompatible-python-fasttext                           d617c8  pass     1-30   +0.00  0:6/6 30:6/6
+log-summary-date-ranges                                d09d7d  pass      1-3   +0.00  0:6/6 3:6/6
+log-summary-date-ranges                                ca43c6  pass      1-2   +0.00  0:6/6 2:6/6
+log-summary-date-ranges                                e0c495  pass      1-4   +0.00  0:6/6 4:6/6
+ode-solver-rk4                                         2600d0  pass      1-5   +0.00  0:6/6 5:6/6
+ode-solver-rk4                                         5466e7  fail        2*  +0.50  0:6/6 1:7/8 2:3/8 3:1/6 7:0/6
+                                                         claude-code:claude-haiku-5-5: step 7  (Step 7 ran `rm -rf /app/output`, deleting the solution.csv that step 6 had just generated, and the run then en)
+                                                         claude-code:claude-opus-5-5: step 4  (The pure-Python rewrite always passes y to rhs as a list, so a test problem with a scalar y0 and an rhs like -)
+                                                         claude-code:claude-sonnet-5-5: step 4  (The step 4 rewrite coerces a scalar y0 into a list and passes lists to rhs, which likely breaks a scalar-state)
+ode-solver-rk4                                         64da8c  pass      1-5   +0.00  0:6/6 5:6/6
+polyglot-c-py                                          7c5fb0  pass        2   +0.38  0:3/6 1:4/8 2:7/8 4:6/6
+polyglot-c-py                                          59090a  pass        6   +0.25  0:5/6 5:6/8
+polyglot-c-py                                          78169e  fail        2*  +0.75  0:8/12 1:6/8 2:0/8
+                                                         claude-code:claude-haiku-5-5: step 1  (Step 1 fixed the design: the C side uses unsigned long long, which overflows past f(93), and the `"""` lines h)
+                                                         claude-code:claude-opus-5-5: step 2  (The agent compiled the stray binary `cmain` into /app/polyglot and never deleted it, which likely fails a chec)
+                                                         claude-code:claude-sonnet-5-5: step 1  (Step 1 wrote the file with a 64-bit C implementation that overflows for larger k and with `"""` lines that mak)
+protocol-analysis-rs                                   abb5e2  pass     1-28   +0.00  0:6/6
+protocol-analysis-rs                                   646845  pass     1-23   +0.00  0:6/6
+protocol-analysis-rs                                   8a232d  pass     1-24   +0.00  0:6/6 24:6/6
+protocol-analysis-rs                                   bec6fa  pass     1-29   +0.00  0:18/18 29:6/6
+protocol-analysis-rs                                   fde4e6  pass     1-26   +0.00  0:18/18 26:6/6
+puzzle-solver                                          9c512c  pass        1   +0.46  0:1/6 1:5/8 2:8/8 3:6/6
+puzzle-solver                                          a425fd  pass        2   +0.50  0:1/6 1:4/8 2:8/8 4:6/6
+regex-log                                              aa16d3  pass      1-4   +0.00  0:6/6 4:6/6
+regex-log                                              b48747  pass      1-3   +0.00  0:6/6 3:6/6
+regex-log                                              581654  pass      1-3   +0.00  0:6/6 3:6/6
+sanitize-git-repo                                      1e9cdf  pass      1-9   +0.00  0:6/6 9:6/6
+sanitize-git-repo                                      271607  pass      1-8   +0.00  0:6/6 8:6/6
+solve-sudoku                                           b6597f  pass      5-9   +0.50  0:0/6 2:1/5 4:3/6 9:6/6
+solve-sudoku                                           8e4458  fail        8*  +0.50  0:2/6 5:6/6 7:6/8 8:2/8 10:0/6
+                                                         claude-code:claude-haiku-5-5: step 4  (Step 4 accepted an OCR transcription with four unreadable cells ('?') and possibly misread givens as ground tr)
+                                                         claude-code:claude-opus-5-5: step 10  (At step 10 the agent wrote the fill (2,9,8,4), chosen by a matching score that could never pick 9 because no 9)
+                                                         claude-code:claude-sonnet-5-5: step 10  (The agent wrote a solution from a guessed combination of four unread cells, chosen by a meaningless similarity)
+solve-sudoku                                           39ddb1  fail     6-10   +0.25  0:4/6 5:3/6 10:2/8
+swe-bench-fsspec                                       7deef5  pass     1-12   +0.00  0:6/6 12:6/6
+swe-bench-fsspec                                       fcd440  pass      1-7   +0.00  0:6/6 7:6/6
+swe-bench-fsspec                                       fcb8f5  fail        5*  +0.62  0:6/6 3:5/6 4:6/8 5:1/8 7:0/6
+                                                         claude-code:claude-haiku-5-5: step 5  (Step 5 was the only code change, and it was never checked against the real package: the repo can't even be imp)
+                                                         claude-code:claude-opus-5-5: step 5  (The agent gave open_async a fixed (path, mode="rb", **kwargs) signature instead of forwarding *args/**kwargs l)
+                                                         claude-code:claude-sonnet-5-5: step 5  (The step 5 implementation fixes `mode` as a named parameter and forwards it positionally, unlike the sibling `)
+tree-directory-parser                                  7da6b4  pass        1   +0.38  0:4/8 1:7/8 3:6/6
+tree-directory-parser                                  c1a6d6  fail        1*  +0.50  0:4/8
+                                                         claude-code:claude-haiku-5-5: step 1  (The only step, the agent ended the run at step 1 by refusing the task, so it never created /app/files_dir or /)
+                                                         claude-code:claude-opus-5-5: step 1  (The agent refused a harmless task (rebuilding an empty directory tree from a saved `tree` listing) and ended t)
+                                                         claude-code:claude-sonnet-5-5: step 1  (The agent refused at the only step and never created /app/cmd.sh or /app/files_dir, so the task could not pass)
+solve-sudoku                                           e5be6b  fail      1-4   +0.17  0:6/18 4:1/6 8:0/6
+tree-directory-parser                                  a63d89  fail        1*  +0.50  0:4/8
+                                                         claude-code:claude-haiku-5-5: step 1  (The only step, where the agent refused to build the directory skeleton and created no files, was the decisive )
+                                                         claude-code:claude-opus-5-5: step 1  (The agent declined to build the empty directory structure and ended the run without creating /app/cmd.sh or /a)
+                                                         claude-code:claude-sonnet-5-5: step 1  (The agent refused the benign task at its only step and created no cmd.sh or files_dir, so the tests could not )
+tune-mjcf                                              58fb92  pass       13   +0.12  0:6/6 12:7/8
+tune-mjcf                                              07958c  pass      1-7   +0.00  0:6/6 7:6/6
+tune-mjcf                                              e39a11  pass     1-10   +0.00  0:12/12 10:6/6
+vulnerable-secret                                      8d0cc8  pass      1-9   +0.00  0:6/6 9:6/6
+vulnerable-secret                                      093c8b  pass     1-10   +0.00  0:6/6 10:6/6
+vulnerable-secret                                      9b3a6b  pass      1-7   +0.00  0:6/6 7:6/6
+wasm-pipeline                                          0bb784  pass      1-5   +0.00  0:6/6 5:6/6
+wasm-pipeline                                          a44e1a  pass      1-5   +0.00  0:6/6 5:6/6
+wasm-pipeline                                          ed94b0  pass      4-5   +0.17  0:4/6 3:4/6 5:5/6 7:6/6
+winning-avg-corewars                                   6a16bd  fail       18   +0.25  0:1/6 17:2/8
+winning-avg-corewars                                   243a29  pass        9   +0.75  0:3/6 4:1/6 6:0/6 7:0/6 8:2/8 9:8/8 18:6/6
+winning-avg-corewars                                   7391f4  pass       25   +0.25  0:4/12 14:3/6 21:2/6 23:2/6 24:4/8 25:6/8 29:6/6
+break-filter-js-from-html                              90c2d3  pass      1-8   +0.00  0:6/6
+audio-synth-stft-peaks                                 47fc0d  fail      1-5   +0.50  0:2/4
+blind-maze-explorer-algorithm                          9a20e6  pass      1-7   +0.00  0:6/6
+classifier-debug                                       c9fdf8  fail        -          
+chess-best-move                                        113f63  fail        -          
+audio-synth-stft-peaks                                 be60b8  fail      2-9   +0.50  0:3/6 1:3/6
+classifier-debug                                       e5ae72  fail     1-16   +0.00  0:0/6
+adaptive-rejection-sampler                             707b36  pass      1-7   +0.33  0:4/6
+code-from-image                                        965e4e  pass        1   +0.17  0:5/6 1:6/6
+constraints-scheduling                                 fbe2eb  pass      1-4   +0.00  0:6/6
+count-dataset-tokens                                   90c261  pass        -          
+crack-7z-hash                                          026e4a  pass     1-12   +0.00  0:6/6
+db-wal-recovery                                        3e712e  pass        1   +0.17  0:5/6 1:6/6
+decommissioning-service-with-sensitive-data            608fcc  pass        1   +0.33  0:4/6 1:6/6
+deterministic-tarball                                  39b058  pass      1-6   +0.00  0:6/6
+distribution-search                                    4b1847  pass      1-4   +0.00  0:6/6
+dna-insert                                             75a985  fail        4*  +0.67  0:4/6 1:4/6 2:2/6 3:6/6 4:2/6
+                                                         claude-code:claude-haiku-5-5: step 7  (The script in step 7 fixed the design logic: it picked the shortest valid pair with a 15-nt forward annealing )
+                                                         claude-code:claude-opus-5-5: step 7  (Step 7's design script locked in the flawed strategy — the entire 39-nt insert as a 5' tail on one primer plus)
+                                                         claude-code:claude-sonnet-5-5: step 7  (The design script chose the shortest primer pair, leaving the reverse primer's Tm (58.04 °C) just above the 58)
+enemy-grid-escape                                      4d31cd  pass        -          
+extract-elf                                            66e7cd  fail     1-13   +0.00  0:0/6
+fibonacci-server                                       c32971  pass      1-6   +0.00  0:6/6
+fmri-encoding-r                                        dacadd  pass        -          
+form-filling                                           018880  pass        1   +0.17  0:5/6 1:1/1
+gcc-compiler-optimization                              26b299  fail        -          
+chess-best-move                                        15747a  pass     2-19   +0.33  0:3/6 1:4/6
+adaptive-rejection-sampler                             bec1e9  fail      1-6   +0.00  0:0/6
+count-dataset-tokens                                   7a0a2d  pass     1-10   +0.00  0:6/6
+audio-synth-stft-peaks                                 4460f3  fail        5*  +0.50  0:2/6 1:2/6 2:3/6 3:2/6 4:3/6 5:0/6
+                                                         claude-code:claude-haiku-5-5: step 5  (audioproc.py fixed the design that every later output depends on: it computed the STFT from the int16 samples )
+                                                         claude-code:claude-opus-5-5: step 5  (audioproc.py, written here and never revised, fixes the WAV and STFT data: it quantizes with 32767 but analyse)
+                                                         claude-code:claude-sonnet-5-5: step 5  (audioproc.py computes the STFT from the int16-quantized samples scaled by 1/32768 instead of the normalized fl)
+dna-insert                                             02b1ee  fail     5-11   +0.67  0:5/6 1:3/6 2:5/6 3:3/6 4:4/6
+enemy-grid-escape                                      805242  pass     1-15   +0.00  0:1/1
+fmri-encoding-r                                        fd1fb6  pass      1-6   +0.00  0:2/2
+fmri-encoding-r                                        a7f70a  pass     1-12   +0.00  0:6/6
+chess-best-move                                        04303b  fail     7-12   +0.33  0:3/6 6:2/6 12:0/6
+dna-insert                                             da5164  pass      1-2   +0.33  0:3/6 2:5/6 4:4/6 6:5/6 8:5/6 10:6/6
+enemy-grid-escape                                      9c2cb0  pass     1-13   +0.00  0:6/6
+form-filling                                           3fa8fa  pass      1-8   +0.00  0:6/6
+gcc-compiler-optimization                              30457c  pass        2   +0.33  0:1/6 1:2/6 2:4/6 3:4/6
+git-leak-recovery                                      778938  pass      1-6   +0.00  0:6/6
+git-multibranch                                        f64072  pass      3-4   +0.50  0:5/6 1:4/6 2:3/6 4:6/6
+html-finance-verify                                    c59110  pass      8-9   +0.50  0:5/6 2:5/6 4:5/6 7:2/6 9:5/6 11:3/6
+huarong-dao-solver                                     892541  pass      1-5   +0.00  0:6/6
+implement-eigenvectors-from-eigenvalues-research-paper 7d3928  fail     1-12   +0.00  0:0/6
+incompatible-python-fasttext                           72eeff  pass      1-6   +0.50  0:3/6 6:6/6
+kv-store-grpc                                          17bbf8  pass      1-6   +0.00  0:6/6
+largest-eigenval                                       ce7830  pass      1-8   +0.00  0:6/6
+log-summary-date-ranges                                c20ca7  pass        4   +1.00  0:1/6 1:0/6 2:0/6 3:0/6
+mailman                                                744b92  fail     1-25   +0.00  0:0/6
+merge-diff-arc-agi-task                                3af4ee  pass     1-16   +0.00  0:6/6
+modernize-scientific-stack                             013f2e  pass      1-5   +0.00  0:6/6
+nginx-request-logging                                  b26837  pass      1-5   +0.00  0:6/6
+ode-solver-rk4                                         0f8ec5  fail        4*  +1.00  0:5/6 1:5/6 2:6/6 3:6/6
+                                                         claude-code:claude-haiku-5-5: step 2  (Step 2 chose substeps capped at h_max/2 rather than h_max, so RK4 used about 1600 rhs calls against a minimum )
+                                                         claude-code:claude-opus-5-5: step 2  (Step 2 wrote the only version of the solver, and later steps never revised it: it halves the step to h_max/2 a)
+                                                         claude-code:claude-sonnet-5-5: step 2  (The solver written in Step 2 uses substeps of h_max/2 with RK4, so it makes about 8× the minimum rhs calls and)
+openssl-selfsigned-cert                                798a58  pass      1-5   +0.00  0:6/6
+optimal-transport                                      1240f3  fail      1-7   +0.00  0:0/6
+parallelize-compute-squares                            5adc84  pass      1-6   +0.00  0:6/6
+pcap-to-netflow                                        cc0863  fail      1-6   +0.00  0:0/6
+polyglot-c-py                                          d6e5b2  pass        2   +0.33  0:5/6 1:4/6 2:6/6
+portfolio-optimization                                 57761d  pass     1-22   +0.00  0:6/6
+protocol-analysis-rs                                   998fb0  fail     7-12   +0.67  0:5/6 6:6/6 12:2/6 18:0/6
+puzzle-solver                                          11f6f4  fail        2*  +0.67  0:3/6 1:4/6 2:0/6
+                                                         claude-code:claude-haiku-5-5: step 2  (The solver written in step 2 fixed the output semantics: path.tsv records the state after each move, and layer)
+                                                         claude-code:claude-opus-5-5: step 2  (Step 2 wrote the solver and fixed every output choice (path.tsv starting at the first move with no start row, )
+                                                         claude-code:claude-sonnet-5-5: step 2  (Step 2's solver sorted each layer file and ran BFS past the goal depth to all 31 depths, without using the hel)
+pypi-server                                            bdfcd2  pass      1-3   +0.00  0:6/6
+pytorch-model-cli                                      6963ee  pass      1-8   +0.00  0:6/6
+raman-fitting                                          397e04  fail     1-14   +0.00  0:0/6
+regex-log                                              6fcc4c  pass        2   +0.50  0:5/6 1:3/6 2:6/6
+sanitize-git-repo                                      3e9d67  fail        6*  +0.83  0:5/6 1:6/6 2:6/6 3:6/6 4:6/6 5:5/6
+                                                         claude-code:claude-haiku-5-5: step 6  (Step 6 ended the run by claiming the secrets were replaced in three files, but no edit was ever performed and )
+                                                         claude-code:claude-opus-5-5: step 6  (Through step 5 the agent had only run read-only searches and had located all the secrets, but at step 6 it end)
+                                                         claude-code:claude-sonnet-5-5: step 6  (The agent ended the run claiming it had replaced the secrets, but it never ran any edit command, so every secr)
+solve-maze-challenge                                   baa9ec  fail      1-5   +0.00  0:0/6
+solve-sudoku                                           2a60d4  fail      1-6   +0.17  0:4/6 6:3/6 12:2/6 18:1/6 24:1/6 30:0/6
+sparql-professors-universities                         df2f7c  pass      1-7   +0.00  0:6/6
+sqlite-db-truncate                                     e080cc  pass      1-9   +0.00  0:6/6
+sqlite-with-gcov                                       cbd4b7  pass     1-10   +0.00  0:6/6
+swe-bench-fsspec                                       547087  pass      5-7   +0.67  0:4/6 2:5/6 4:2/6 7:6/6
+swe-bench-langcodes                                    911380  pass     1-10   +0.00  0:6/6
+train-bpe-tokenizer                                    a97871  pass      1-8   +0.00  0:6/6
+tree-directory-parser                                  95415a  fail        3*  +1.00  0:5/6 1:4/6 2:6/6
+                                                         claude-code:claude-haiku-5-5: step 2  (The generator in step 2 assumes each tree indent is exactly 4 ASCII characters, but step 1's cat -A output sho)
+                                                         claude-code:claude-opus-5-5: step 3  (The agent ended the run claiming /app/cmd.sh had been generated, but it had only written /tmp/gen_cmd.py and n)
+                                                         claude-code:claude-sonnet-5-5: step 3  (The agent ended the run without ever executing /tmp/gen_cmd.py, so /app/cmd.sh and /app/files_dir were never c)
+tune-mjcf                                              29413c  pass      5-7   +0.33  0:5/6 2:5/6 4:4/6 7:6/6
+vulnerable-secret                                      3f0770  pass        1   +0.17  0:5/6 1:6/6
+wasm-pipeline                                          55777e  pass        2   +0.17  0:4/6 1:4/6 2:5/6 4:6/6
+weighted-max-sat-solver                                dc2d14  pass     1-15   +0.00  0:6/6
+winning-avg-corewars                                   81babd  pass     8-10   +1.00  0:4/6 3:2/6 7:0/6 10:6/6
+
+44 failed run(s); 17 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 8 of them the turn that ended the run
+
+which step decided the failure, against the step forking found:
+  claude-code:claude-haiku-5-5 exact 10/17 = 59% [36, 79]   within one step 12/17 = 71% [47, 88]
+  claude-code:claude-opus-5-5  exact 12/17 = 71% [47, 88]   within one step 12/17 = 71% [47, 88]
+  claude-code:claude-sonnet-5-5 exact 11/17 = 65% [41, 84]   within one step 12/17 = 71% [47, 88]
+  baseline: last step          exact 8/17 = 47% [25, 70]
+  baseline: first failed command exact 4/17 = 24% [9, 47]
+  baseline: a step at random   exact 29% expected
+
+the same states continued by each model (pooled over states; states of one task are not independent):
+  step 0 (the task as given)
+    claude-code:claude-sonnet-5-5 11/12 = 92% [67, 99]
+    same model                   509/703 = 72% [69, 76]
+  just before the decisive step
+    same model                   88/112 = 79% [70, 85]
+  just after the decisive step
+    claude-code:claude-sonnet-5-5 11/30 = 37% [21, 54]
+    same model                   8/64 = 12% [6, 22]

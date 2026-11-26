@@ -1,10 +1,10 @@
-# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-24)
+# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-26)
 
 | | |
 |---|---|
-| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); the decisive-step experiment `decisive1` is chained across plan windows from 2026-11-24 19:00 UTC |
+| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete (86 trunks, judges scored, 2026-11-26); a top-up of trunks on the tasks that fail is chained next |
 | **Trigger** | The operator wanted a resume project that uses the platform's new `fork` (2026-11-12): an eval harness that measures where agent runs get decided |
-| **Commits** | 24 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … `ef7ed14` `--swap-at`; full list in §3.8 |
+| **Commits** | 26 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the decisive1 results; full list in §3.9 |
 | **Deployed** | Nothing deployed. Runs use the dev platform as an ordinary tenant, public SDK only |
 | **Customer impact** | None. Dev only. The test tenant's sandbox limit was raised 50 → 200 on dev on 2026-11-17 for these runs (still 200) |
 | **Times** | UTC |
@@ -36,6 +36,13 @@
   - 3 of the 6 were decided by the agent ending the run while forks from its last state passed 5–6/6;
   - Opus and Sonnet judges named the same step as the forks 4/6 times, Haiku 3/6;
   - where they differ, judges named where a bug was introduced and forks where it stopped being recoverable.
+- **decisive1** (2026-11-24/25, 86 Haiku trunks on the 26 mixed tasks, 7 windows, $34.13), pooled with medium1:
+  - 44 failed runs, 17 with a clear decisive step, 8 of them the turn that ended the run;
+  - judges match the forks exactly: Opus 12/17 (71% [47, 88]), Sonnet 11/17, Haiku 10/17; last step 8/17, first
+    failed command 4/17, chance 29%; judges beat chance and the first-failure rule, not yet clearly the last step;
+  - all three judges miss the same 5 cases, in both directions (§3.8);
+  - from Haiku's exact state just after its decisive step, Sonnet still finishes 11/30 (37% [21, 54]), Haiku 8/64
+    (12% [6, 22]); 5 failed trunks only.
 
 ## 3. What we did
 
@@ -160,14 +167,61 @@
   - the full design's Sonnet part would have been ~$45–50, about 15 windows;
   - cut to `--swap-at after`, estimated $10–15 for ~20 failed runs.
 
-### 3.8 Commits
+### 3.8 decisive1 (2026-11-24 to 2026-11-26)
+
+- **Run.** 3 Haiku trunks per task on the 26 tasks mixed at step 0 in medium1, plus the pilot's, `--bisect
+  --max-states 12 -k 6 --swap-model claude-sonnet-5-5 --swap-k 6 --swap-at after`, chained over 7 windows.
+- **Re-cut after two windows** (operator, 2026-11-25): 12 of 78 trunks done for $10.68; a Haiku continuation averaged
+  $0.025 against the pilot's $0.007 and one `chess-best-move` trunk alone took 13.9M tokens (~580k per continuation
+  over 20 steps). Dropped `chess-best-move` (its 21 kept snapshots deleted; two finished trunks stay), `--confirm-k`
+  12 → 8 (finished trunks keep 12), 5-hour limit 50% → 80%. Afterwards a continuation averaged $0.009 and the rest
+  took 5 windows.
+- **Totals:** 86 trunks, 85 scored, 20 failed, 11 with a clear decisive step (5 the ending turn); 162.6M tokens,
+  $34.13; weekly window 4% → 35%. 106 kept snapshots of finished trunks left at the end were dropped.
+- **Judges** (Haiku, Sonnet, Opus via `claude -p`, one answer each) on the 17 clear cases of decisive1 and medium1:
+  51 judgments, a few minutes.
+
+| | exact | within 1 step |
+|---|---|---|
+| Opus 5.5 judge | 12/17 = 71% [47, 88] | 12/17 |
+| Sonnet 5.5 judge | 11/17 = 65% [41, 84] | 12/17 |
+| Haiku 5.5 judge | 10/17 = 59% [36, 79] | 12/17 |
+| Baseline: last step | 8/17 = 47% [25, 70] | |
+| Baseline: first failed command | 4/17 = 24% [9, 47] | |
+| Baseline: random step | 29% expected | |
+
+- **The 5 cases every judge misses by more than one step:**
+
+| Run | Forks | Judges | Reading |
+|---|---|---|---|
+| `gcc-compiler-optimization` (d1) | the ending turn, 7 (V 6/8 before) | 4–5, the timing script and its noisy numbers | bug went in earlier, still fixable; lost when the agent stopped |
+| `ode-solver-rk4` (m1) | the ending turn, 4 (V 6/6 before) | 2, the solver with ~8× the needed calls | same pattern (the earlier example) |
+| `ode-solver-rk4` (d1) | 2, the first solver (V 7/8 → 3/8 → 1/6 at 3) | Opus/Sonnet 4 (a later rewrite), Haiku 7 (`rm -rf` of the output) | forks put the loss earlier than any judge; the mechanism is not visible in the transcript |
+| `solve-sudoku` (d1) | 8, the template-matching script for the unread cells (V 6/8 → 2/8) | Opus/Sonnet 10 (wrote the guessed fill), Haiku 4 (accepted the OCR) | judges blame the step that commits the answer; forks show the method chosen at 8 had already lost it (Haiku's step 4 is followed by V 6/6 at 5) |
+| `dna-insert` (m1) | 4 (V 6/6 → 2/6) | 7, the primer design script | medium1 states, k = 6, no confirmation; V at step 2 was also 2/6, so this one may be noise |
+
+- **Reading.** The disagreements go both ways. Judges anchor on visible moments: where code was written with a bug, or
+  where the final answer was written out. Forks measure recoverability, which can be lost later than the bug (when
+  the agent stops without checking) or earlier than the visible failure (when an approach is chosen that the later
+  steps cannot rescue).
+- **Second model** (pooled over states; states of one task are not independent):
+
+| State | Sonnet | Haiku |
+|---|---|---|
+| Step 0 (pilot tasks only) | 11/12 = 92% [67, 99] | 509/703 = 72% overall |
+| Just before the decisive step | | 88/112 = 79% [70, 85] |
+| Just after the decisive step | 11/30 = 37% [21, 54] | 8/64 = 12% [6, 22] |
+
+- Results: `results/decisive1-claude-code-haiku.txt` (interim; replaced after the top-up).
+
+### 3.9 Commits
 
 `48ff58a` stage 0 · `1e12f75` design · `b6a1d1f` claude-code policy · `bb86b1b` smoke test · `f1bed72` README ·
 `042a8a7` Terminal-Bench adapter · `94c06f7` top-up runs · `1b7dccd` list-price cost · `a8259db` plan guard · `e5b071e`
 README · `d1bfd71` variance split, pilot1 · `01dffee` soundness results · `5d5c64c` adaptive · `fb31ad4` weekly guard ·
 `c5116fe` sandbox limit · `7fc6900` summary tidy · `0fe3945` max-states, keep/resume · `06837a6` per-window wind-down ·
 `9b74cb6` medium1 results · `2557eb9` decisive steps, swap, judge · `a1a4bad` shared step 0 · `46e2315` README ·
-`ef7ed14` `--swap-at`.
+`ef7ed14` `--swap-at` · `a3f3d6f` work log · decisive1 results, README and work log.
 
 Platform "files" (CLAUDE.md's six): not applicable. This is a separate repo that only consumes the public SDK; no API
 surface changed.
@@ -181,32 +235,28 @@ surface changed.
 | Real model, real platform | smoke test 30/30 scored; medium1 62/62 tasks complete |
 | Keep/resume across windows | exercised in medium1's chain (8 windows); snapshots survived about 2 days |
 | Bisect + swap on the platform | `decisive1` pilot: 3 trunks, Haiku and Sonnet continuations scored, 0 unscored |
-| Judge | 18 judgments made on medium1 (3 judges × 6 runs) |
+| Judge | 51 judgments (3 judges × 17 clear runs of decisive1 and medium1), all parsed |
+| decisive1 on the platform | 86 trunks over 7 windows, 85 scored; resume across windows and the re-cut mid-run worked |
 
-## 5. Status (2026-11-24 ~18:00 UTC)
+## 5. Status (2026-11-26)
 
-- `decisive1`:
-  - the chain is waiting for the 5-hour reset at 19:00 UTC;
-  - it then runs 3 Haiku trunks per task on the 26 tasks mixed at step 0 in medium1 (`--bisect --max-states 12
-    --confirm-k 12 --swap-model claude-sonnet-5-5 --swap-at after`, 5-hour 50%, weekly 70%, 400M token cap);
-  - it stops on: all done, a non-budget error, a window that used no tokens, or the weekly window at 69%.
-- 8 snapshots from the pilot are kept on dev for the chain's first window.
-- Plan: weekly window 4% at the start of the chain.
-- The dev test tenant's sandbox limit is still 200 (set 2026-11-17; not re-checked today).
+- `decisive1` complete; judges run; results file and README written.
+- Next: a top-up of Haiku trunks on the tasks that produced failures, same settings, 5-hour limit 80%, weekly 70%,
+  chained (operator, 2026-11-26), aiming at roughly 35 clear cases.
+- Plan: weekly window 35% before the top-up.
+- The dev test tenant's sandbox limit is still 200.
 
 ## 6. Still to do
 
-1. Let `decisive1` finish. If it gives too few clear failures (target ~40), raise `--trunks` (the same command adds).
-2. Run the judges (Haiku, Sonnet, Opus) on every clear case; one call per run per judge.
-3. Analysis:
-   - agreement with intervals;
-   - sort the disagreements into "where the mistake was made" vs. "where it became unrecoverable";
-   - Sonnet's recovery rate after Haiku's decisive step.
-4. Write-up: results file, the report page rebuilt around the two findings, README headline.
-5. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
-6. **Operator:** roll the dev tenant limit back to the default once the runs end.
-7. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes public. Until then nobody else can run it.
-8. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
+1. Top-up (running next); then re-run the judges on the new clear cases, replace the results file, rebuild the report
+   page around the two findings.
+2. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
+3. **Operator:** roll the dev tenant limit back to the default once the runs end.
+4. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
+   public. Until then nobody else can run it.
+5. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
+6. Parked (operator, 2026-11-25): training a small process reward model on fork labels, with forks run through a
+   cheaper API (DeepSeek, estimated $100–250 for ~10k labelled states).
 
 ## 7. Operating it
 
