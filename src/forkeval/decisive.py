@@ -105,6 +105,18 @@ JUDGE_SCHEMA: dict[str, Any] = {
     "required": ["step", "reason"],
 }
 
+#: Prompt version 2 asks two questions, about this agent rather than any agent.
+JUDGE_SCHEMA_V2: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "introduced": {"type": "integer", "description": "the step where the mistake that caused the failure was made"},
+        "unrecoverable": {"type": "integer",
+                          "description": "the step after which this agent was unlikely to succeed whatever it did next"},
+        "reason": {"type": "string"},
+    },
+    "required": ["introduced", "unrecoverable", "reason"],
+}
+
 RESULT_CHARS = 3000
 
 
@@ -115,8 +127,10 @@ def _clip(text: str) -> str:
     return f"{text[:half]}\n[... {len(text) - 2 * half} characters omitted ...]\n{text[-half:]}"
 
 
-def judge_prompt(messages: list[dict[str, Any]]) -> tuple[str, int]:
-    """A failed run as the judge sees it, and its number of steps (the ending turn included, when there is one)."""
+def judge_prompt(messages: list[dict[str, Any]], version: int = 1) -> tuple[str, int]:
+    """A failed run as the judge sees it, and its number of steps (the ending turn included, when there is one).
+    Version 1 asks for the step that decided the failure; version 2 asks where the mistake was made and after
+    which step this agent, continuing as it was, was unlikely to succeed."""
     out = ["# Task", "", str(messages[0]["content"]), "", "# What the agent did", ""]
     step = 0
     for m in messages[1:]:
@@ -134,6 +148,17 @@ def judge_prompt(messages: list[dict[str, Any]]) -> tuple[str, int]:
                 out += [f"## Step {step}: {b['name']}", json.dumps(b["input"], ensure_ascii=False, indent=1)]
             elif b.get("type") == "tool_result":
                 out += ["Result:", "```", _clip(str(b.get("content", ""))), "```", ""]
+    if version == 2:
+        out += [
+            "# Questions", "",
+            "This run FAILED: the task's tests did not pass at the end. Answer two questions about this agent, the "
+            "same model continuing from where it was, without seeing the tests:",
+            "1. introduced: at which step was the mistake that caused the failure made?",
+            "2. unrecoverable: after which step was this agent unlikely to succeed, whatever it did next?",
+            f"The two can be the same step. Any step above is a possible answer, from 1 to {step}; the step that ends "
+            "the run counts.",
+        ]
+        return "\n".join(out), step
     out += [
         "# Question", "",
         "This run FAILED: the task's tests did not pass at the end. Which single step decided the failure, that is, "
@@ -161,6 +186,44 @@ def nonzero_exits(messages: list[dict[str, Any]]) -> list[int]:
                 if head == "timed out" or (head.startswith("exit code: ") and head != "exit code: 0"):
                     bad.append(step)
     return bad
+
+
+def first_write(messages: list[dict[str, Any]]) -> int | None:
+    """The first step that wrote a file (a baseline that needs no model: the first solution attempt)."""
+    step = 0
+    for m in messages[1:]:
+        content = m["content"]
+        if isinstance(content, str):
+            continue
+        if _ends(m):
+            step += 1
+            continue
+        for b in content:
+            if b.get("type") == "tool_use":
+                step += 1
+                if b.get("name") == "write_file":
+                    return step
+    return None
+
+
+def cluster_bootstrap(groups: Sequence[Sequence[float]], *, draws: int = 4000, seed: int = 0,
+                      level: float = 0.95) -> tuple[float, float, float]:
+    """Mean of per-case values and a percentile interval from resampling whole groups (tasks) with replacement:
+    cases of one task are not independent. Returns (mean, lo, hi)."""
+    import random
+    groups = [g for g in groups if g]
+    flat = [v for g in groups for v in g]
+    if not flat:
+        return float("nan"), float("nan"), float("nan")
+    rng = random.Random(seed)
+    stats = []
+    for _ in range(draws):
+        pick = [groups[rng.randrange(len(groups))] for _ in groups]
+        vals = [v for g in pick for v in g]
+        stats.append(sum(vals) / len(vals))
+    stats.sort()
+    a = (1 - level) / 2
+    return sum(flat) / len(flat), stats[int(a * draws)], stats[min(draws - 1, int((1 - a) * draws))]
 
 
 def _ends(m: dict[str, Any]) -> bool:

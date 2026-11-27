@@ -78,6 +78,10 @@ class Store:
         if "skipped" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
             # why no continuations were run from this state: runner.SETTLED, NO_ROOM, OVER_LIMIT, LOST, UNNEEDED
             self.db.execute("ALTER TABLE branch_points ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0")
+        if "introduced" not in {r["name"] for r in self.db.execute("PRAGMA table_info(judgments)")}:
+            # prompt version 2: the step where the judge says the failing mistake was made (`step` is where it
+            # became unrecoverable)
+            self.db.execute("ALTER TABLE judgments ADD COLUMN introduced INTEGER")
         if "kept" not in {r["name"] for r in self.db.execute("PRAGMA table_info(branch_points)")}:
             # 1: the snapshot was left on the platform when a budget stopped the run, to be measured later
             self.db.execute("ALTER TABLE branch_points ADD COLUMN kept INTEGER NOT NULL DEFAULT 0")
@@ -197,9 +201,18 @@ class Store:
 
     # -- judgments ----------------------------------------------------------------
 
-    def add_judgment(self, trunk: str, judge: str, step: int | None, reason: str, steps_shown: int) -> None:
-        self.db.execute("INSERT OR REPLACE INTO judgments (trunk, judge, step, reason, steps_shown, created_at) "
-                        "VALUES (?, ?, ?, ?, ?, ?)", (trunk, judge, step, reason, steps_shown, time.time()))
+    def add_judgment(self, trunk: str, judge: str, step: int | None, reason: str, steps_shown: int,
+                     introduced: int | None = None) -> None:
+        self.db.execute("INSERT OR REPLACE INTO judgments (trunk, judge, step, reason, steps_shown, created_at, "
+                        "introduced) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (trunk, judge, step, reason, steps_shown, time.time(), introduced))
+
+    def continuations_at(self, trunk: str, step: int, policy: str) -> list[tuple[int, bool]]:
+        """Scored continuations of a trunk's state at `step` by `policy`: (steps the run ended at, passed)."""
+        return [(r[0], bool(r[1])) for r in self.db.execute(
+            "SELECT r.steps, r.outcome FROM runs r JOIN branch_points b ON r.branch_point = b.id "
+            "WHERE b.trunk = ? AND b.step = ? AND r.kind = 'cont' AND r.policy = ? AND r.outcome IS NOT NULL",
+            (trunk, step, policy))]
 
     def judgments(self, trunk: str) -> dict[str, sqlite3.Row]:
         return {r["judge"]: r for r in self.db.execute("SELECT * FROM judgments WHERE trunk = ?", (trunk,))}

@@ -37,6 +37,20 @@ class Budget:
             raise BudgetExceeded(f"token budget of {self.max_tokens} reached for experiment {self.experiment!r}")
 
 
+class Holdout:
+    """The same policy under another name, for continuations that check a state's value and never choose it."""
+
+    def __init__(self, base: Policy) -> None:
+        self.base = base
+        self.name = f"{base.name}#holdout"
+
+    async def act(self, messages: list[Message]) -> Turn:
+        return await self.base.act(messages)
+
+    def __getattr__(self, attr: str):
+        return getattr(self.base, attr)
+
+
 def _clip(text: str) -> str:
     if len(text) <= MAX_RESULT_CHARS:
         return text
@@ -255,7 +269,7 @@ class Runner:
     def __init__(self, *, factory: BoxFactory, policy: Policy, store: Store, experiment: str,
                  max_tokens: int | None = None, concurrency: int = 2, max_sandboxes: int = 45,
                  keep_seconds: int = 0, swap_policy: Policy | None = None, swap_k: int = 6,
-                 confirm_k: int = 0, swap_at: str = "all") -> None:
+                 confirm_k: int = 0, swap_at: str = "all", holdout_k: int = 0) -> None:
         self.factory = factory
         self.policy = policy
         #: A second policy that continues some of the first one's states (with --bisect: step 0, once per
@@ -269,6 +283,11 @@ class Runner:
         self.swap_at = swap_at
         #: With --bisect: continuations each of the two states either side of the decisive step end up with.
         self.confirm_k = confirm_k
+        #: With --bisect: fresh continuations of the two states either side of a failed run's clear decisive
+        #: step, recorded under "<policy>#holdout". They play no part in finding the step, so they give an
+        #: estimate of its size that the selection did not touch.
+        self.holdout_k = holdout_k
+        self.holdout_policy = Holdout(policy)
         self.store = store
         self.experiment = experiment
         self.budget = Budget(store, experiment, max_tokens)
@@ -321,6 +340,26 @@ class Runner:
                     await box.delete()
             finally:
                 await self._room.give(1)
+
+    async def grader(self, task: Task, k: int) -> tuple[int, int]:
+        """Is the task's test deterministic? Applies the reference solution once, forks the result k times and
+        runs the test in every fork at the same time (as continuations run). Returns (passes, scored)."""
+        async with self._slots:
+            image = await self.image_for(task)
+            box = await self.factory.create(image=image, flavor=task.flavor, ttl=task.ttl,
+                                            tags=self._tags(task, "grader"))
+            forks: list[Box] = []
+            try:
+                await prepare(box, task)
+                await box.write("/tmp/.forkeval-solution.sh", task.solution or "")
+                await box.run("bash /tmp/.forkeval-solution.sh; rm -f /tmp/.forkeval-solution.sh",
+                              timeout=BUILD_STEP_TIMEOUT, cwd=task.workdir, env=task.env)
+                forks = await box.fork(k)
+                got = await asyncio.gather(*(score(f, task) for f in forks), return_exceptions=True)
+                ok = [g for g in got if isinstance(g, bool)]
+                return sum(ok), len(ok)
+            finally:
+                await asyncio.gather(*(b.delete() for b in [box, *forks]), return_exceptions=True)
 
     async def check(self, task: Task) -> tuple[bool, bool | None]:
         """Is the task sound here? Returns (untouched environment fails the test,
@@ -603,6 +642,12 @@ class Runner:
                 if not outcome and move is not None and move.clear:
                     wanted = (move.before, move.after) if self.swap_at == "all" else (move.after,)
                     targets |= {i for i, s in enumerate(steps) if s in wanted}
+            if self.holdout_k and not outcome and move is not None and move.clear:
+                for i, point in enumerate(points):
+                    if steps[i] in (move.before, move.after) and point.box is not None:
+                        need = self.holdout_k - self.store.point_result(point.id, self.holdout_policy.name)[1]
+                        if need > 0:
+                            await self._run_more(task, point, need, self.holdout_policy, batch=k)
             for i, point in enumerate(points):
                 if values[i] is None:
                     self.store.skip_branch_point(point.id, UNNEEDED)

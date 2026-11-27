@@ -171,3 +171,53 @@ async def test_swap_at_after_continues_only_the_state_after_the_decisive_step(tm
     swapped = {r["step"]: r["n"] for r in store.by_policy("x") if r["policy"] == "gates:1,1,1"}
     assert swapped == {2: 3}
     assert FakeBox.live == set()
+
+
+def test_first_write_and_cluster_bootstrap():
+    from forkeval.decisive import cluster_bootstrap, first_write
+    msgs = [{"role": "user", "content": "task"},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "1", "name": "shell", "input": {"command": "ls"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "1", "content": "exit code: 0"}]},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "2", "name": "write_file", "input": {"path": "a", "content": ""}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "2", "content": "written"}]},
+            {"role": "assistant", "content": [{"type": "text", "text": "done"}]}]
+    assert first_write(msgs) == 2
+    assert first_write(msgs[:3]) is None
+    mean, lo, hi = cluster_bootstrap([[1.0, 1.0], [0.0], []], draws=500)
+    assert abs(mean - 2 / 3) < 1e-9 and 0.0 <= lo <= mean <= hi <= 1.0
+
+
+def test_judge_prompt_version_2_asks_two_questions():
+    from forkeval.decisive import judge_prompt
+    msgs = [{"role": "user", "content": "task"},
+            {"role": "assistant", "content": [{"type": "text", "text": "done"}]}]
+    text, n = judge_prompt(msgs, version=2)
+    assert n == 1 and "introduced" in text and "unrecoverable" in text and "this agent" in text
+
+
+def test_null_search_finds_a_sure_drop_and_rarely_clears_a_flat_path():
+    import random
+    from forkeval.nullsim import rates, search, single_drop
+    m = search(single_drop(1.0, 0.0, 8, 3), random.Random(0))
+    assert m is not None and m.clear and m.after == 3
+    flat = rates(lambda: [0.0] * 9, 200)        # sure to fail from the start: nothing to decide
+    assert flat.clear == 0.0
+
+
+def test_vote_breaks_ties_towards_the_earlier_step():
+    assert cli._vote([4, 2, 4, 2]) == 2 and cli._vote([5, 5, 3]) == 5 and cli._vote([None]) is None
+
+
+async def test_holdout_measures_both_sides_of_the_decisive_step_apart_from_the_search(tmp_path, capsys):
+    FakeBox.live.clear()
+    store = Store(tmp_path)
+    policy = GatesPolicy([1.0, 0.9, 1.0], seed=2)
+    runner = Runner(factory=FakeFactory(), policy=policy, store=store, experiment="x", holdout_k=4)
+    await runner.trunk(TASK, k=6, branch_at=schedule("every"), bisect=True)
+    held = {r["step"]: r["n"] for r in store.by_policy("x") if r["policy"] == policy.name + "#holdout"}
+    assert held == {1: 4, 2: 4}
+    searched = {r["step"]: r["n"] for r in store.states("x")}
+    assert searched[1] == 6 and searched[2] == 6      # the search's own counts are untouched
+    assert FakeBox.live == set()
+    assert cli.main(["decisive", "--experiment", "x", "--data", str(tmp_path)]) == 0
+    assert "held out: before" in capsys.readouterr().out
