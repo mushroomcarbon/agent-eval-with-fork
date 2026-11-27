@@ -3,11 +3,12 @@
 # mixed at step 0 in medium1 (chess-best-move dropped after two windows for cost; its two finished trunks stay).
 # --bisect --max-states 12, k = 6, the two states around the move topped up with --confirm-k (12 until
 # 2026-11-25, 8 after), --swap-model claude-sonnet-5-5 --swap-k 6 --swap-at after (the pilot trunks used
-# --swap-at all). 3 trunks a task plus the pilot's. 2026-11-24 to 2026-11-25, dev platform, 7 plan windows,
-# 162.6M tokens, $34.13 at the CLI's list-price figure.
+# --swap-at all). 3 trunks a task plus the pilot's, then a top-up to 7 trunks a task on the 10 tasks that had
+# failed (2026-11-26; winning-avg-corewars left out for cost). 2026-11-24 to 2026-11-26, dev platform, 9 plan
+# windows, 216.8M tokens, $47.65 at the CLI's list-price figure.
 # The judge table pools decisive1 with medium1 (k = 6, no confirmation stage, decisive steps from its states).
-# Judges: claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5 through `claude -p`, one answer each, 2026-11-26.
-# Interim: a top-up of trunks on the tasks that fail is running next; this file is replaced when it lands.
+# Judges: claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5 through `claude -p`, one answer each, 2026-11-26/27.
+# "Last step" is always the turn that ended the run, so it is right exactly on the ending-turn cases.
 #
 #   forkeval decisive --experiment decisive1 --experiment medium1
 
@@ -130,6 +131,71 @@ wasm-pipeline                                          ed94b0  pass      4-5   +
 winning-avg-corewars                                   6a16bd  fail       18   +0.25  0:1/6 17:2/8
 winning-avg-corewars                                   243a29  pass        9   +0.75  0:3/6 4:1/6 6:0/6 7:0/6 8:2/8 9:8/8 18:6/6
 winning-avg-corewars                                   7391f4  pass       25   +0.25  0:4/12 14:3/6 21:2/6 23:2/6 24:4/8 25:6/8 29:6/6
+adaptive-rejection-sampler                             071e1a  fail        6*  +0.50  0:9/18 3:3/6 5:4/8 6:0/8 7:0/6
+                                                         claude-code:claude-haiku-5-5: step 6  (Step 6 wrote the entire ars.R (sampler, log-concavity checks, and test suite) in one unreviewed pass, and its )
+                                                         claude-code:claude-opus-5-5: step 6  (Step 6 most likely fixed the failure: it set the `ars` interface (lower/upper bounds, extra arguments sent to )
+                                                         claude-code:claude-sonnet-5-5: step 6  (Step 6 wrote the whole implementation, fixing the ars signature and the test() output format. A mismatch with )
+adaptive-rejection-sampler                             891abb  pass        3   +0.50  0:9/18 1:3/6 2:4/8 3:8/8 7:6/6
+adaptive-rejection-sampler                             ddbf56  fail        3*  +0.62  0:9/18 2:5/8 3:0/8 5:0/6
+                                                         claude-code:claude-haiku-5-5: step 3  (Step 3 wrote the entire /app/ars.R in one go, fixing the core design (finite-difference derivatives, a toleran)
+                                                         claude-code:claude-opus-5-5: step 5  (Step 5 likely wrote /app/normal_samples.txt with a non-numeric header line ('sample'), which a grader reading )
+                                                         claude-code:claude-sonnet-5-5: step 3  (Step 3 wrote the whole implementation, including the `ars()` interface and the `test()` output format. The age)
+adaptive-rejection-sampler                             899ac1  fail       16*  +0.88  0:9/18 9:4/6 14:3/6 15:7/8 16:0/8 19:0/6
+                                                         claude-code:claude-haiku-5-5: step 18  (Step 18 is the last substantive code change and locked in the final design: it loosened the log-concavity chec)
+                                                         claude-code:claude-opus-5-5: step 18  (Probably step 18: the final rewrite of ars.R kept a rigid interface (separate scalar lower/upper, other argume)
+                                                         claude-code:claude-sonnet-5-5: step 16  (Step 16 fixed the interface (ars(f, n, lower, upper, init, max_iter, ...), test(seed), and the report format),)
+code-from-image                                        738e6d  pass      1-5   +0.08  0:11/12 5:6/6
+code-from-image                                        b98da3  pass      1-7   +0.08  0:11/12 7:6/6
+code-from-image                                        01bb00  pass      1-6   +0.08  0:11/12 6:6/6
+code-from-image                                        982cad  pass      1-8   +0.08  0:11/12 8:6/6
+dna-insert                                             d67c18  pass      7-8   +0.80  0:8/20 5:3/6 6:1/5 8:6/6 11:6/6
+dna-insert                                             d576fe  pass      1-2   +0.27  0:8/20 2:4/6 5:5/6 10:6/6
+dna-insert                                             c486c8  pass        6   +0.50  0:8/20 3:3/6 5:4/8 6:8/8 7:6/6
+dna-insert                                             36263a  pass       10   +0.62  0:8/20 7:4/6 8:3/6 9:3/8 10:8/8 14:6/6
+dna-insert                                             b4d083  pass        3   +0.38  0:8/20 2:4/8 3:7/8 5:6/6 11:6/6
+gcc-compiler-optimization                              64c694  fail        3   +0.38  0:12/20 1:3/6 2:3/8 3:0/8
+gcc-compiler-optimization                              af6255  fail        4*  +0.75  0:12/20 2:4/6 3:7/8 4:1/8
+                                                         claude-code:claude-haiku-5-5: step 3  (Step 3 produced timings that were not sanity-checked: the -O0 and -g -O0 runs differ by only about 20 ms in a )
+                                                         claude-code:claude-opus-5-5: step 3  (Step 3 wrote the only results.md timings, one 5-run median with no warm-up that was never re-checked, so they )
+                                                         claude-code:claude-sonnet-5-5: step 2  (The step 2 script uses a median of 5 wall-clock runs of fib(40), which is noisy against the 200 ms error bound)
+gcc-compiler-optimization                              73a368  fail        5*  +0.62  0:12/20 4:5/8
+                                                         claude-code:claude-haiku-5-5: step 3  (Step 3 produced the timing numbers that went into the final table, and they were unreliable: the same fib(40) )
+                                                         claude-code:claude-opus-5-5: step 2  (Writing the benchmark script in step 2 fixed the compile commands, table format and wall-clock timing, and not)
+                                                         claude-code:claude-sonnet-5-5: step 2  (The script written in step 2 fixed the compile and timing approach, and its results looked implausible: -Os wa)
+gcc-compiler-optimization                              3f9d2b  fail        1   +0.22  0:12/20 1:3/8 3:1/6
+incompatible-python-fasttext                           c45340  pass     1-16   +0.00  0:6/6 16:6/6
+incompatible-python-fasttext                           7984a9  pass      1-5   +0.00  0:6/6 5:6/6
+incompatible-python-fasttext                           719903  pass      1-8   +0.00  0:6/6 8:6/6
+incompatible-python-fasttext                           1da2f2  pass      1-7   +0.00  0:6/6 7:6/6
+ode-solver-rk4                                         bb42b7  pass      1-5   +0.00  0:6/6 5:6/6
+ode-solver-rk4                                         b8913d  pass      1-5   +0.00  0:6/6 5:6/6
+ode-solver-rk4                                         b0ef8b  pass      1-9   +0.00  0:6/6 9:6/6
+ode-solver-rk4                                         66298f  pass      1-4   +0.00  0:6/6 4:6/6
+polyglot-c-py                                          b412b4  pass        2   +0.25  0:8/12 1:6/8 2:8/8
+polyglot-c-py                                          4d077f  pass        3   +0.25  0:8/12 2:6/8
+polyglot-c-py                                          b04b4b  fail        1*  +0.67  0:8/12 1:0/8
+                                                         claude-code:claude-haiku-5-5: step 2  (At step 2 the agent saw gcc emit "missing terminating \" character" warnings, chose to keep them, and ended th)
+                                                         claude-code:claude-opus-5-5: step 1  (Step 1 compiled the program inside /app/polyglot, leaving a stray `cmain` binary where tests likely expect onl)
+                                                         claude-code:claude-sonnet-5-5: step 1  (The file written in step 1 computes Fibonacci in C with unsigned long long, which overflows past F(93), and it)
+polyglot-c-py                                          cf100b  pass        2   +0.25  0:8/12 1:4/8 2:6/8 3:6/6
+solve-sudoku                                           ec3b82  fail      1-7   +0.17  0:6/18 7:1/6 14:0/6
+solve-sudoku                                           f8f8b8  fail     1-11   +0.17  0:6/18 11:1/6 22:0/6
+solve-sudoku                                           702e31  fail    11-15   +0.17  0:6/18 10:2/6 15:1/6 20:0/6
+solve-sudoku                                           dff136  fail      1-4   +0.17  0:6/18 4:1/6 8:0/6
+swe-bench-fsspec                                       263a0e  pass      1-4   +0.00  0:6/6 4:6/6
+swe-bench-fsspec                                       38dbb5  pass     1-12   +0.00  0:6/6 12:6/6
+swe-bench-fsspec                                       7f0573  fail        4*  +0.62  0:6/6 2:4/6 3:5/8 4:0/8 8:0/6
+                                                         claude-code:claude-haiku-5-5: step 4  (Step 4 is where the agent wrote the only code change, a DirFileSystem.open_async that delegates to the wrapped)
+                                                         claude-code:claude-opus-5-5: step 4  (The agent wrote open_async with a fixed (path, mode="rb", **kwargs) signature instead of copying the sibling o)
+                                                         claude-code:claude-sonnet-5-5: step 4  (The agent implemented open_async with an explicit `mode` parameter forwarded positionally instead of mirroring)
+swe-bench-fsspec                                       39de97  pass     1-12   +0.00  0:6/6 12:6/6
+tree-directory-parser                                  6ec064  pass        1   +0.25  0:4/8 1:6/8 2:8/8 5:6/6 11:6/6
+tree-directory-parser                                  05ad93  pass        1   +0.38  0:4/8 1:7/8 3:6/6
+tree-directory-parser                                  57cae5  fail        3*  +1.00  0:4/8 2:8/8
+                                                         claude-code:claude-haiku-5-5: step 3  (Step 3 ended the run without building /app/files_dir or writing and making executable /app/cmd.sh, so none of )
+                                                         claude-code:claude-opus-5-5: step 3  (The agent refused the harmless directory-rebuild task and ended the run without creating /app/cmd.sh or /app/f)
+                                                         claude-code:claude-sonnet-5-5: step 3  (The agent refused to build the structure and never created /app/cmd.sh, so the task could not pass after that )
+tree-directory-parser                                  336ed0  pass        1   +0.38  0:4/8 1:7/8 2:5/6 4:6/6
 break-filter-js-from-html                              90c2d3  pass      1-8   +0.00  0:6/6
 audio-synth-stft-peaks                                 47fc0d  fail      1-5   +0.50  0:2/4
 blind-maze-explorer-algorithm                          9a20e6  pass      1-7   +0.00  0:6/6
@@ -226,22 +292,22 @@ wasm-pipeline                                          55777e  pass        2   +
 weighted-max-sat-solver                                dc2d14  pass     1-15   +0.00  0:6/6
 winning-avg-corewars                                   81babd  pass     8-10   +1.00  0:4/6 3:2/6 7:0/6 10:6/6
 
-44 failed run(s); 17 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 8 of them the turn that ended the run
+58 failed run(s); 25 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 10 of them the turn that ended the run
 
 which step decided the failure, against the step forking found:
-  claude-code:claude-haiku-5-5 exact 10/17 = 59% [36, 79]   within one step 12/17 = 71% [47, 88]
-  claude-code:claude-opus-5-5  exact 12/17 = 71% [47, 88]   within one step 12/17 = 71% [47, 88]
-  claude-code:claude-sonnet-5-5 exact 11/17 = 65% [41, 84]   within one step 12/17 = 71% [47, 88]
-  baseline: last step          exact 8/17 = 47% [25, 70]
-  baseline: first failed command exact 4/17 = 24% [9, 47]
-  baseline: a step at random   exact 29% expected
+  claude-code:claude-haiku-5-5 exact 14/25 = 56% [37, 74]   within one step 18/25 = 72% [53, 87]
+  claude-code:claude-opus-5-5  exact 16/25 = 64% [44, 80]   within one step 17/25 = 68% [49, 84]
+  claude-code:claude-sonnet-5-5 exact 17/25 = 68% [49, 84]   within one step 18/25 = 72% [53, 87]
+  baseline: last step          exact 10/25 = 40% [23, 59]
+  baseline: first failed command exact 7/25 = 28% [13, 47]
+  baseline: a step at random   exact 26% expected
 
 the same states continued by each model (pooled over states; states of one task are not independent):
   step 0 (the task as given)
     claude-code:claude-sonnet-5-5 11/12 = 92% [67, 99]
     same model                   509/703 = 72% [69, 76]
   just before the decisive step
-    same model                   88/112 = 79% [70, 85]
+    same model                   129/168 = 77% [70, 83]
   just after the decisive step
-    claude-code:claude-sonnet-5-5 11/30 = 37% [21, 54]
-    same model                   8/64 = 12% [6, 22]
+    claude-code:claude-sonnet-5-5 14/66 = 21% [13, 32]
+    same model                   9/112 = 8% [4, 14]

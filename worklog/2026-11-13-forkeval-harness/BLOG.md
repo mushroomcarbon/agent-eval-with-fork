@@ -1,6 +1,6 @@
 # Where do AI agent runs go wrong? Copy the computer mid-run and find out
 
-*2026-11-13 to 2026-11-26. Technical detail, commits and verification: [TECHNICAL.md](TECHNICAL.md).*
+*2026-11-13 to 2026-11-27. Technical detail, commits and verification: [TECHNICAL.md](TECHNICAL.md).*
 
 **TL;DR.** We built forkeval, a tool for testing AI agents. It answers a question ordinary benchmarks can't: at what
 moment did this run become a success or a failure? It works by freezing an agent's computer partway through a task,
@@ -8,11 +8,11 @@ making exact copies of it, and letting the agent finish from each copy many time
 
 - On 62 programming tasks, about half of the uncertainty is gone by the agent's fourth action.
 - Many failures come down to one action we can point at.
-- Almost half of those are the agent declaring "done" while copies of its computer from just before went on to pass.
+- Two in five of those are the agent declaring "done" while copies of its computer from just before went on to pass.
 - AI judges reading the transcript point at the same action as the copies about two times in three, and when they
   miss, they miss in a telling way.
-- From the exact moment just after the weaker model's decisive mistake, a stronger model still finishes the task
-  about three times as often as the weaker one does.
+- A mistake that kills the run for the weaker model kills it for a stronger one too. The stronger model only does
+  better from states that are damaged but not yet lost.
 
 ## The question
 
@@ -82,22 +82,23 @@ action cheaply. It measures the start and the end, then keeps halving the stretc
 measuring a 20-step run takes about six frozen states, not twenty. Then we compared the result with what AI judges
 say.
 
-We ran 86 more Haiku runs on the 26 tasks where it sometimes passes and sometimes fails. Together with the earlier
-data that gives 44 failed runs, and 17 of them with one clear decisive action. Asked to find that action:
+We ran 127 more Haiku runs on the 26 tasks where it sometimes passes and sometimes fails. Together with the earlier
+data that gives 58 failed runs, and 25 of them with one clear decisive action. Asked to find that action:
 
-- Claude Opus as a judge got it exactly right 12 times out of 17, Sonnet 11, Haiku 10;
-- "always blame the last step" got 8, "blame the first command that errored" got 4, and guessing gets about 5.
+- Claude Sonnet as a judge got it exactly right 17 times out of 25, Opus 16, Haiku 14;
+- "always blame the last step" got 10, "blame the first command that errored" got 7, and guessing gets about 6.
 
-So judges are clearly better than guessing, but with 17 cases we can't yet say they beat the simple last-step rule.
+So judges are clearly better than guessing. Against the last-step rule, Sonnet was right where the rule was wrong
+10 times, and the other way round 3 times. That leans towards the judges but isn't conclusive with 25 cases.
 
 The disagreements were the interesting part. In one task, every judge blamed the step where the agent wrote an
 inefficient solver. But copies taken after that step still passed six out of six: the agent could easily have caught
 and fixed it. The run was lost only when the agent declared itself finished without checking. Judges tend to name
-where a bug went in; the copies name where it stopped being fixable. Eight of the 17 failures were exactly this:
+where a bug went in; the copies name where it stopped being fixable. Ten of the 25 failures were exactly this:
 quitting while the copies show success was one more step away.
 
-All three judges missed the same five cases, and not always in the same direction. In two, they blamed where a bug
-went in, while the copies show it was still fixable. In three, they blamed a late step, such as the one that wrote
+All three judges missed the same six cases, three in each direction. In three, they blamed where a bug
+went in, while the copies show it was still fixable. In the other three, they blamed a late step, such as the one that wrote
 out the final answer, while the copies show the run was already lost earlier. In a sudoku task, the agent picked a
 method for reading four blurry digits that could never get them right; the copies taken just after that step pass
 far less often, but every judge pointed two steps later, where the agent wrote down its guess. Judges anchor on
@@ -107,9 +108,12 @@ visible moments. The copies measure something different: when the run stopped be
 decisive mistake and hand it to Claude Sonnet. Does Sonnet still finish the task? No ordinary benchmark can ask this,
 because it can't recreate that state.
 
-From that exact state, Sonnet still finished 11 times out of 30 (37%). Haiku itself finished 8 times out of 64 (12%),
-and from just before its mistake it finished 79% of the time. So the stronger model recovers about three times as
-often from the same broken state. That comes from only five failed runs, so it's a first signal, not a result.
+From that exact state, Sonnet still finished 14 times out of 66 (21%). Haiku itself finished 9 times out of 112 (8%),
+and from just before its mistake it finished 77% of the time. That looks like "Sonnet recovers two to three times as
+often", but the detail says something sharper. Where Haiku's own copies never recovered, Sonnet never did either:
+0 out of 42. All of Sonnet's successes came from the four states where Haiku still recovered now and then, and
+there Sonnet passed 14 times out of 24. The decisive mistakes the copies find are mostly fatal whoever takes over.
+A stronger model helps from states that are damaged but not dead.
 
 ## How it went
 
@@ -132,7 +136,7 @@ often from the same broken state. That comes from only five failed runs, so it's
 
 ## Next
 
-The experiment for both questions is done; it took seven usage windows and about $34. Seventeen clear cases is
-enough to see the story but thin for statistics, so we are running more Haiku attempts on just the tasks that
-fail, aiming at about twice as many. Then the judges see the new cases, and the report page gets rebuilt around the
-two findings.
+The experiment for both questions is done: nine usage windows and about $48 at list prices, all on a regular
+subscription. What's left is the report page, rebuilt around the two findings. After that, the open items are
+checking that forked runs behave like fresh ones, and repeating a run through the regular API instead of the
+subscription tool.

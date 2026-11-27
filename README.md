@@ -26,8 +26,7 @@ anything into).
 | Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
 | Since then | the Terminal-Bench adapter, the adaptive schedule, a cap on states per trunk, resuming a trunk that a budget stopped |
 | Medium tasks | `results/medium1-claude-code-haiku.txt`: 62 Terminal-Bench tasks, Haiku through `claude -p`, one trunk each |
-| Decisive steps | `results/decisive1-claude-code-haiku.txt`: 86 Haiku trunks on the 26 tasks mixed at step 0, bisected to the step that decided each run; 17 failed runs (with medium1's) have a clear one, scored against three judge models; Sonnet continues Haiku's state just after the decisive step |
-| In progress | more trunks on the tasks that fail, for more clear cases |
+| Decisive steps | `results/decisive1-claude-code-haiku.txt`: 127 Haiku trunks on the 26 tasks mixed at step 0, bisected to the step that decided each run; 25 failed runs (with medium1's) have a clear one, scored against three judge models; Sonnet continues Haiku's state just after the decisive step |
 | Not yet | a run through the API policy |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
@@ -140,18 +139,32 @@ finish the task?" is a question only an exact copy of the state can ask.
 The decided-by-step estimator assumes the measured states were not chosen by looking at the data, which the
 bisection does; use it on runs without `--bisect`.
 
-First results (`results/decisive1-claude-code-haiku.txt`, interim): of 44 failed Haiku runs, 17 have a clear
-decisive step, and 8 of those are the turn that ended the run: the agent stopped while forks from its last state
-went on to pass. Judges reading the transcript name the same step as the forks in 12/17 (Opus), 11/17 (Sonnet) and
-10/17 (Haiku) cases; "the last step" gets 8/17, "the first failing command" 4/17, chance about 29%. The intervals
-are wide (Opus 47-88%), so judges beat chance and the first-failure rule, but not yet clearly the last-step rule.
-All three judges miss the same 5 cases, and they miss in both directions: twice they name the step where a bug
-went in while forks from after it still passed (the run was lost when the agent stopped without checking), and
-three times they name a later step (the script that produced the final answer, or a later rewrite) while the forks
-put the loss earlier, where the approach that failed was chosen. One of those three comes from medium1, whose states
-had 6 continuations and no confirmation stage. From Haiku's exact state just after its decisive step, Sonnet still finishes 11/30 times
-(37% [21, 54]) and Haiku 8/64 (12% [6, 22]); from just before it, Haiku finishes 79%. Those 30 Sonnet runs come
-from 5 failed trunks.
+Results (`results/decisive1-claude-code-haiku.txt`): of 58 failed Haiku runs, 25 have a clear decisive step, and
+10 of those are the turn that ended the run: the agent stopped while forks from its last state went on to pass.
+
+| Who names the decisive step | exact | 95% interval |
+|---|---|---|
+| Sonnet judge | 17/25 | 68% [49, 84] |
+| Opus judge | 16/25 | 64% [44, 80] |
+| Haiku judge | 14/25 | 56% [37, 74] |
+| the last step (= the ending turn) | 10/25 | 40% [23, 59] |
+| the first failing command | 7/25 | 28% [13, 47] |
+| a step at random | | 26% expected |
+
+Judges beat chance and the first-failure rule. Against the last-step rule, paired on the same runs, Sonnet is right
+where it is wrong 10 times and the reverse 3 times (sign test p = 0.09): ahead, not yet conclusively. All three
+judges miss the same 6 runs by more than a step, half in each direction. Three times they name the step where a bug
+went in while forks from after it still passed; the run was lost when the agent stopped without checking. Three
+times they name a later step (the script that produced the final answer, a later rewrite) while the forks put the
+loss earlier, where the approach that failed was chosen; one of these comes from medium1, whose states had 6
+continuations and no confirmation stage.
+
+From Haiku's exact state just after its decisive step, Sonnet finishes 14/66 times (21% [13, 32]; 11 decisive1 runs
+whose decisive step is not the ending turn) and Haiku 9/112 (8% [4, 14], medium1's states included); from just
+before it, Haiku finishes 77%. The difference is concentrated: on the 7 of those states where Haiku's own
+continuations never pass, Sonnet passes 0 of 42; on the 4 where Haiku still passes sometimes (7/32), Sonnet passes
+14/24. A decisive mistake that kills the run for
+Haiku kills it for Sonnet too; Sonnet's edge is on states that are damaged but not dead.
 
 ## Two ways to reach the model
 

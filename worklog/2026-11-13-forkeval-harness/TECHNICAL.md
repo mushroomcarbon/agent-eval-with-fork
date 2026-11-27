@@ -1,10 +1,10 @@
-# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-26)
+# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-27)
 
 | | |
 |---|---|
-| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete (86 trunks, judges scored, 2026-11-26); a top-up of trunks on the tasks that fail is chained next |
+| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete with its top-up (127 trunks, 25 clear decisive steps, judges scored, 2026-11-27); the report page is next |
 | **Trigger** | The operator wanted a resume project that uses the platform's new `fork` (2026-11-12): an eval harness that measures where agent runs get decided |
-| **Commits** | 26 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the decisive1 results; full list in §3.9 |
+| **Commits** | 27 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the decisive1 results; full list in §3.9 |
 | **Deployed** | Nothing deployed. Runs use the dev platform as an ordinary tenant, public SDK only |
 | **Customer impact** | None. Dev only. The test tenant's sandbox limit was raised 50 → 200 on dev on 2026-11-17 for these runs (still 200) |
 | **Times** | UTC |
@@ -36,13 +36,13 @@
   - 3 of the 6 were decided by the agent ending the run while forks from its last state passed 5–6/6;
   - Opus and Sonnet judges named the same step as the forks 4/6 times, Haiku 3/6;
   - where they differ, judges named where a bug was introduced and forks where it stopped being recoverable.
-- **decisive1** (2026-11-24/25, 86 Haiku trunks on the 26 mixed tasks, 7 windows, $34.13), pooled with medium1:
-  - 44 failed runs, 17 with a clear decisive step, 8 of them the turn that ended the run;
-  - judges match the forks exactly: Opus 12/17 (71% [47, 88]), Sonnet 11/17, Haiku 10/17; last step 8/17, first
-    failed command 4/17, chance 29%; judges beat chance and the first-failure rule, not yet clearly the last step;
-  - all three judges miss the same 5 cases, in both directions (§3.8);
-  - from Haiku's exact state just after its decisive step, Sonnet still finishes 11/30 (37% [21, 54]), Haiku 8/64
-    (12% [6, 22]); 5 failed trunks only.
+- **decisive1** (2026-11-24 to 26, 127 Haiku trunks on the 26 mixed tasks, 9 windows, $47.65), pooled with medium1:
+  - 58 failed runs, 25 with a clear decisive step, 10 of them the turn that ended the run;
+  - judges match the forks exactly: Sonnet 17/25 (68% [49, 84]), Opus 16/25, Haiku 14/25; last step 10/25, first
+    failed command 7/25, chance 26%; paired against the last step, Sonnet 10 wins to 3 (sign test p = 0.09);
+  - all three judges miss the same 6 cases, 3 in each direction (§3.8);
+  - from Haiku's exact state just after its decisive step, Sonnet still finishes 14/66 (21%), Haiku 9/112 (8%);
+    Sonnet's passes all come from the 4 states Haiku itself sometimes recovers (Sonnet 14/24 there, 0/42 elsewhere).
 
 ## 3. What we did
 
@@ -176,29 +176,36 @@
   over 20 steps). Dropped `chess-best-move` (its 21 kept snapshots deleted; two finished trunks stay), `--confirm-k`
   12 → 8 (finished trunks keep 12), 5-hour limit 50% → 80%. Afterwards a continuation averaged $0.009 and the rest
   took 5 windows.
-- **Totals:** 86 trunks, 85 scored, 20 failed, 11 with a clear decisive step (5 the ending turn); 162.6M tokens,
-  $34.13; weekly window 4% → 35%. 106 kept snapshots of finished trunks left at the end were dropped.
-- **Judges** (Haiku, Sonnet, Opus via `claude -p`, one answer each) on the 17 clear cases of decisive1 and medium1:
-  51 judgments, a few minutes.
+- **Totals before the top-up:** 86 trunks, 85 scored, 20 failed, 11 with a clear decisive step; 162.6M tokens,
+  $34.13; weekly window 4% → 35%.
+- **Top-up** (operator, 2026-11-26): 7 trunks a task on the 10 tasks that had failed (40 trunks; winning-avg-corewars
+  left out for its 18–29-step runs). 2 windows, 54.2M tokens, $13.52; weekly 37% → 49%. Yield: 8 more clear cases
+  from 40 trunks (about 1 in 5, against 1 in 3 expected).
+- **Totals:** 127 trunks, 126 scored, 34 failed, 19 with a clear decisive step (7 of them the ending turn); 216.8M
+  tokens, $47.65 over 9 windows. Leftover kept snapshots were dropped after each run (106, then 12).
+- **Judges** (Haiku, Sonnet, Opus via `claude -p`, one answer each) on the 25 clear cases of decisive1 and medium1:
+  75 judgments, a few minutes.
 
-| | exact | within 1 step |
-|---|---|---|
-| Opus 5.5 judge | 12/17 = 71% [47, 88] | 12/17 |
-| Sonnet 5.5 judge | 11/17 = 65% [41, 84] | 12/17 |
-| Haiku 5.5 judge | 10/17 = 59% [36, 79] | 12/17 |
-| Baseline: last step | 8/17 = 47% [25, 70] | |
-| Baseline: first failed command | 4/17 = 24% [9, 47] | |
-| Baseline: random step | 29% expected | |
+| | exact | within 1 step | paired vs. last step (judge only / last only) |
+|---|---|---|---|
+| Sonnet 5.5 judge | 17/25 = 68% [49, 84] | 18/25 | 10 / 3, p = 0.09 |
+| Opus 5.5 judge | 16/25 = 64% [44, 80] | 17/25 | 9 / 3, p = 0.15 |
+| Haiku 5.5 judge | 14/25 = 56% [37, 74] | 18/25 | 8 / 4, p = 0.39 |
+| Baseline: last step (always the ending turn) | 10/25 = 40% [23, 59] | | |
+| Baseline: first failed command | 7/25 = 28% [13, 47] | | |
+| Baseline: random step | 26% expected | | |
 
-- **The 5 cases every judge misses by more than one step:**
+- On the 10 ending-turn cases the judges get 6–7 right; on the other 15, 8–10.
+- **The 6 cases every judge misses by more than one step:**
 
 | Run | Forks | Judges | Reading |
 |---|---|---|---|
-| `gcc-compiler-optimization` (d1) | the ending turn, 7 (V 6/8 before) | 4–5, the timing script and its noisy numbers | bug went in earlier, still fixable; lost when the agent stopped |
-| `ode-solver-rk4` (m1) | the ending turn, 4 (V 6/6 before) | 2, the solver with ~8× the needed calls | same pattern (the earlier example) |
-| `ode-solver-rk4` (d1) | 2, the first solver (V 7/8 → 3/8 → 1/6 at 3) | Opus/Sonnet 4 (a later rewrite), Haiku 7 (`rm -rf` of the output) | forks put the loss earlier than any judge; the mechanism is not visible in the transcript |
-| `solve-sudoku` (d1) | 8, the template-matching script for the unread cells (V 6/8 → 2/8) | Opus/Sonnet 10 (wrote the guessed fill), Haiku 4 (accepted the OCR) | judges blame the step that commits the answer; forks show the method chosen at 8 had already lost it (Haiku's step 4 is followed by V 6/6 at 5) |
-| `dna-insert` (m1) | 4 (V 6/6 → 2/6) | 7, the primer design script | medium1 states, k = 6, no confirmation; V at step 2 was also 2/6, so this one may be noise |
+| `gcc-compiler-optimization` 96d44b (d1) | the ending turn, 7 (V 6/8 before) | 4–5, the timing script and its noisy numbers | bug went in earlier, still fixable; lost when the agent stopped |
+| `gcc-compiler-optimization` 73a368 (d1) | the ending turn, 5 (V 5/8 before) | 2–3 | same pattern |
+| `ode-solver-rk4` 0f8ec5 (m1) | the ending turn, 4 (V 6/6 before) | 2, the solver with ~8× the needed calls | same pattern (the earlier example) |
+| `ode-solver-rk4` 5466e7 (d1) | 2, the first solver (V 7/8 → 3/8 → 1/6 at 3) | Opus/Sonnet 4 (a later rewrite), Haiku 7 (`rm -rf` of the output) | forks put the loss earlier than any judge; the mechanism is not visible in the transcript |
+| `solve-sudoku` 8e4458 (d1) | 8, the template-matching script for the unread cells (V 6/8 → 2/8) | Opus/Sonnet 10 (wrote the guessed fill), Haiku 4 (accepted the OCR) | judges blame the step that commits the answer; forks show the method chosen at 8 had already lost most of it (V 6/6 at 5, after Haiku's step 4) |
+| `dna-insert` 75a985 (m1) | 4 (V 6/6 → 2/6) | 7, the primer design script | medium1 states, k = 6, no confirmation; V at step 2 was also 2/6, so this one may be noise |
 
 - **Reading.** The disagreements go both ways. Judges anchor on visible moments: where code was written with a bug, or
   where the final answer was written out. Forks measure recoverability, which can be lost later than the bug (when
@@ -209,10 +216,14 @@
 | State | Sonnet | Haiku |
 |---|---|---|
 | Step 0 (pilot tasks only) | 11/12 = 92% [67, 99] | 509/703 = 72% overall |
-| Just before the decisive step | | 88/112 = 79% [70, 85] |
-| Just after the decisive step | 11/30 = 37% [21, 54] | 8/64 = 12% [6, 22] |
+| Just before the decisive step | | 129/168 = 77% [70, 83] |
+| Just after the decisive step | 14/66 = 21% [13, 32] | 9/112 = 8% [4, 14] |
 
-- Results: `results/decisive1-claude-code-haiku.txt` (interim; replaced after the top-up).
+- Per state just after the decisive step (11 decisive1 runs with a Sonnet measurement): where Haiku's continuations
+  pass 0 times (7 states), Sonnet passes 0/42; where Haiku passes sometimes (ode 3/8, sudoku 2/8, gcc af6255 1/8,
+  swe-bench fcb8f5 1/8), Sonnet passes 6/6, 5/6, 3/6 and 0/6. A step that is fatal for Haiku is fatal for Sonnet
+  too; Sonnet's edge is on states that are damaged but not dead.
+- Results: `results/decisive1-claude-code-haiku.txt`.
 
 ### 3.9 Commits
 
@@ -221,7 +232,7 @@
 README · `d1bfd71` variance split, pilot1 · `01dffee` soundness results · `5d5c64c` adaptive · `fb31ad4` weekly guard ·
 `c5116fe` sandbox limit · `7fc6900` summary tidy · `0fe3945` max-states, keep/resume · `06837a6` per-window wind-down ·
 `9b74cb6` medium1 results · `2557eb9` decisive steps, swap, judge · `a1a4bad` shared step 0 · `46e2315` README ·
-`ef7ed14` `--swap-at` · `a3f3d6f` work log · decisive1 results, README and work log.
+`ef7ed14` `--swap-at` · `a3f3d6f` work log · `3602cdc` decisive1 results (interim) · decisive1 with the top-up.
 
 Platform "files" (CLAUDE.md's six): not applicable. This is a separate repo that only consumes the public SDK; no API
 surface changed.
@@ -235,21 +246,18 @@ surface changed.
 | Real model, real platform | smoke test 30/30 scored; medium1 62/62 tasks complete |
 | Keep/resume across windows | exercised in medium1's chain (8 windows); snapshots survived about 2 days |
 | Bisect + swap on the platform | `decisive1` pilot: 3 trunks, Haiku and Sonnet continuations scored, 0 unscored |
-| Judge | 51 judgments (3 judges × 17 clear runs of decisive1 and medium1), all parsed |
-| decisive1 on the platform | 86 trunks over 7 windows, 85 scored; resume across windows and the re-cut mid-run worked |
+| Judge | 75 judgments (3 judges × 25 clear runs of decisive1 and medium1), all parsed |
+| decisive1 on the platform | 127 trunks over 9 windows, 126 scored; resume across windows, the re-cut mid-run and the top-up worked |
 
-## 5. Status (2026-11-26)
+## 5. Status (2026-11-27)
 
-- `decisive1` complete; judges run; results file and README written.
-- Next: a top-up of Haiku trunks on the tasks that produced failures, same settings, 5-hour limit 80%, weekly 70%,
-  chained (operator, 2026-11-26), aiming at roughly 35 clear cases.
-- Plan: weekly window 35% before the top-up.
+- `decisive1` and its top-up complete; judges run on all 25 clear cases; results file, README and this entry updated.
+- Nothing is running. Plan: weekly window 49% after the top-up.
 - The dev test tenant's sandbox limit is still 200.
 
 ## 6. Still to do
 
-1. Top-up (running next); then re-run the judges on the new clear cases, replace the results file, rebuild the report
-   page around the two findings.
+1. Rebuild the report page around the two findings.
 2. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
 3. **Operator:** roll the dev tenant limit back to the default once the runs end.
 4. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
