@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete with its top-up (127 trunks, 25 clear decisive steps, judges scored, 2026-11-27); the report page is next |
+| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete with its top-up (127 trunks, 25 clear decisive steps, judges scored, report page rebuilt, 2026-11-27) |
 | **Trigger** | The operator wanted a resume project that uses the platform's new `fork` (2026-11-12): an eval harness that measures where agent runs get decided |
 | **Commits** | 27 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the decisive1 results; full list in §3.9 |
 | **Deployed** | Nothing deployed. Runs use the dev platform as an ordinary tenant, public SDK only |
@@ -251,19 +251,19 @@ surface changed.
 
 ## 5. Status (2026-11-27)
 
-- `decisive1` and its top-up complete; judges run on all 25 clear cases; results file, README and this entry updated.
+- `decisive1` and its top-up complete; judges run on all 25 clear cases; results file, README, this entry and the report
+  page (private artifact, rebuilt around the two findings) updated.
 - Nothing is running. Plan: weekly window 49% after the top-up.
 - The dev test tenant's sandbox limit is still 200.
 
 ## 6. Still to do
 
-1. Rebuild the report page around the two findings.
-2. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
-3. **Operator:** roll the dev tenant limit back to the default once the runs end.
-4. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
+1. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
+2. **Operator:** roll the dev tenant limit back to the default once the runs end.
+3. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
    public. Until then nobody else can run it.
-5. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
-6. Parked (operator, 2026-11-25): training a small process reward model on fork labels, with forks run through a
+4. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
+5. Parked (operator, 2026-11-25): training a small process reward model on fork labels, with forks run through a
    cheaper API (DeepSeek, estimated $100–250 for ~10k labelled states).
 
 ## 7. Operating it
