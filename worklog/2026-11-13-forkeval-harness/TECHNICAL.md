@@ -321,7 +321,8 @@ surface changed.
 
 ## 5. Status (2026-11-28)
 
-- decisive1 and the review follow-ups are written up; the re-scored results, README and this entry are updated.
+- decisive1 and the review follow-ups are written up; the re-scored results, README, this entry and the report page
+  (private artifact, version 3) are updated.
 - `decisive2` runs from the chain (`chain_d2.sh`), at most 80% of each plan window (operator, 2026-11-27); it waits
   for the weekly reset on 2026-12-01 and then runs its judges.
 - The dev test tenant's sandbox limit is still 200.
