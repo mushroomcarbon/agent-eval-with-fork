@@ -1,10 +1,10 @@
-# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-27)
+# Work report: forkeval, an agent eval harness built on sandbox fork (2026-11-13 to 2026-11-28)
 
 | | |
 |---|---|
-| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete with its top-up (127 trunks, 25 clear decisive steps, judges scored, report page rebuilt, 2026-11-27) |
+| **Status** | **Partly done.** Harness built and validated; medium1 complete (62 tasks); `decisive1` complete with its top-up (127 trunks, 25 clear decisive steps, judges scored); review follow-ups done 2026-11-28 (grader check, fresh-run control, reworded judges, null simulation); `decisive2` (held-out continuations) running |
 | **Trigger** | The operator wanted a resume project that uses the platform's new `fork` (2026-11-12): an eval harness that measures where agent runs get decided |
-| **Commits** | 27 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the decisive1 results; full list in §3.9 |
+| **Commits** | 30 in `mushroomcarbon/agent-eval-with-fork`, all pushed; `48ff58a` stage 0 … the review follow-ups; full list in §3.10 |
 | **Deployed** | Nothing deployed. Runs use the dev platform as an ordinary tenant, public SDK only |
 | **Customer impact** | None. Dev only. The test tenant's sandbox limit was raised 50 → 200 on dev on 2026-11-17 for these runs (still 200) |
 | **Times** | UTC |
@@ -43,6 +43,14 @@
   - all three judges miss the same 6 cases, 3 in each direction (§3.8);
   - from Haiku's exact state just after its decisive step, Sonnet still finishes 14/66 (21%), Haiku 9/112 (8%);
     Sonnet's passes all come from the 4 states Haiku itself sometimes recovers (Sonnet 14/24 there, 0/42 elsewhere).
+- **Review follow-ups** (2026-11-27/28, §3.9):
+  - `gcc-compiler-optimization`'s reference solution fails 8/8 here: its 4 clear cases are out, with
+    `tree-directory-parser`'s 3 refusals. On the remaining 18 (11 tasks) judges get 11–13, the last step 4, the new
+    baseline "first file written" 12: judges beat the last step (Sonnet +50 points [+8, +79], task-clustered) but
+    not the first-file rule (+6 [−23, +35]);
+  - fresh-run control on the 7 swap tasks: Sonnet 21/42, Haiku 32/42, so the swap result says nothing about a
+    stronger model; and Haiku passes 76% fresh against 54% of its step-0 forks (open);
+  - null simulation: on gradual runs the search calls an interior step clear 5–38% of the time.
 
 ## 3. What we did
 
@@ -225,14 +233,73 @@
   too; Sonnet's edge is on states that are damaged but not dead.
 - Results: `results/decisive1-claude-code-haiku.txt`.
 
-### 3.9 Commits
+### 3.9 Review follow-ups (2026-11-27/28)
+
+- **Review.** An independent Opus 5.5 reviewer read the repo, results and write-up (2026-11-27). Accepted findings:
+  grader noise in the gcc ending-turn cases; the search selects the biggest move, so its continuations overstate it;
+  weak baselines (first file written scores 15/25); no control for the swap; the judge question asked about an ideal
+  agent; an unusual policy (`claude -p`). It also asked for prior work to be cited (OmegaPRM, Math-Shepherd, VinePPO,
+  Who&When; not yet checked).
+- **Built** (`39de1ae`): `forkeval grader`; `--holdout-k` (continuations at each side of a clear step recorded as
+  `<policy>#holdout`, never used by the search) and `decisive --replicated`; judge `--prompt-version 2 --samples 3`
+  (`introduced` and `unrecoverable`, majority vote, ties to the earlier step); the first-file-written baseline;
+  task-clustered bootstrap intervals and paired differences against the last-step and first-file rules; the per-case
+  ending-turn split; `--exclude`; `forkeval null` (`nullsim.py`). 62 unit tests.
+- **Fresh forks at decisive1's states were not possible**: its branch points were deleted after measurement and the
+  kept leftovers dropped. `decisive2` replaces that step.
+- **Grader check** (`results/grader-2026-11-27.txt`): 26 tasks, reference solution applied once, forked 8×, every copy
+  scored. 25 pass 8/8; `gcc-compiler-optimization` fails 8/8.
+- **Ending-turn split** of the 10 ending-turn cases: in 3 a copy that also stopped at once passed (gcc 96d44b 6/8,
+  gcc 73a368 4/6, ode 0f8ec5 1/1); 3 are `tree-directory-parser` refusals; 4 are agents stopping too early
+  (code-from-image, fasttext, sanitize-git-repo, tree 95415a).
+- **Judges re-scored** (`results/review-followups-2026-11-28.txt`; intervals resample tasks):
+
+| | all 25 (13 tasks) | without gcc, tree: 18 (11 tasks) |
+|---|---|---|
+| Sonnet judge | 17 = 68% [41, 92] | 13 = 72% [45, 94] |
+| Opus judge | 16 = 64% [39, 88] | 12 = 67% [44, 92] |
+| Haiku judge | 14 = 56% [33, 79] | 11 = 61% [33, 84] |
+| v2 "introduced", majority of 3 (Haiku / Opus / Sonnet) | 16 / 17 / 15 | 13 / 13 / 13 |
+| v2 "unrecoverable" (Haiku / Opus / Sonnet) | 8 / 10 / 16 | 4 / 4 / 12 |
+| first file written (else last step) | 15 = 60% [36, 84] | 12 = 67% [41, 92] |
+| last step | 10 = 40% [13, 68] | 4 = 22% [5, 50] |
+| first failed command (else last step) | 7 = 28% | 2 = 11% |
+| random | 26% | 19% |
+
+- Paired, on the 18: Sonnet vs last step 10/1, +50 points [+8, +79]; Opus 9/1, +44 [+12, +71]; Haiku 8/1, +39 [0, +67].
+  Vs first file written: Sonnet 3/2, +6 [−23, +35]; Opus 4/4; Haiku 2/3. On all 25 no judge's difference from the
+  last step excludes zero (Sonnet +28 [−10, +65]).
+- Haiku and Opus answer "unrecoverable" with the last step almost every time; Sonnet does not.
+- **Null simulation** (`forkeval null`, k 6, confirm 8, 12 states, 2000 runs a cell): on paths where V falls evenly
+  from 0.6 or 0.8 to 0–0.4, an interior step is called clear 5–38% of the time (more for bigger total falls and
+  shorter runs); with V_T ≥ 0.4 the ending turn is called clear 38–81% (correctly: the run did fail at its end). A
+  single drop at action 3 of 8 is found at the right action 98% (0.9 → 0.1), 68% (0.8 → 0.2), 21% (0.7 → 0.3).
+- **Fresh-run control** (`fresh1-haiku`, `fresh1-sonnet`: 6 fresh runs each on the 7 swap tasks, 2026-11-27): Haiku
+  32/42, Sonnet 21/42; every failure an `end_turn` with a wrong answer. Sonnet $0.205 a run, Haiku $0.024; Sonnet
+  runs are shorter (6.3 steps against 8.4) and it skips checks (polyglot-c-py: 0/6, 1–2 steps each; dna-insert:
+  computes melting temperatures itself when `oligotm` is missing, then stops). The swap's 0/42 therefore says
+  nothing about a stronger model.
+- **Fork against fresh**, same 7 tasks: Haiku fresh 32/42 = 76%, step-0 forks 97/178 = 54%, trunks 40/77 = 52%.
+  decisive2's step-0 forks, started hours after the fresh runs, pass 7/18, so not time drift. Timed-out commands are
+  equally common (12% fresh, 12% step-0 forks); no DNS, connection, pip or clock errors in any transcript. Fresh runs
+  take 244 s on average, continuations 356 s although most start mid-run. Candidates: the suspend/restore every
+  trunk and continuation goes through, or load (continuations run many at a time on the single dev box). Open.
+- **decisive2** (from 2026-11-27): 5 Haiku trunks a task on 23 tasks (gcc, tree and chess out), `--bisect
+  --max-states 12 --confirm-k 8 --holdout-k 12`. Sonnet at step 0 and both sides (`--swap-at all`) for the first 3
+  windows, dropped 2026-11-28 (control above; most of the cost). After 3 windows: 431 runs, $13.09, 3 clear cases;
+  waiting for the weekly reset (2026-12-01 13:00). First held-out numbers: just before the step, search 17/24, held
+  out 14/29.
+
+### 3.10 Commits
 
 `48ff58a` stage 0 · `1e12f75` design · `b6a1d1f` claude-code policy · `bb86b1b` smoke test · `f1bed72` README ·
 `042a8a7` Terminal-Bench adapter · `94c06f7` top-up runs · `1b7dccd` list-price cost · `a8259db` plan guard · `e5b071e`
 README · `d1bfd71` variance split, pilot1 · `01dffee` soundness results · `5d5c64c` adaptive · `fb31ad4` weekly guard ·
 `c5116fe` sandbox limit · `7fc6900` summary tidy · `0fe3945` max-states, keep/resume · `06837a6` per-window wind-down ·
 `9b74cb6` medium1 results · `2557eb9` decisive steps, swap, judge · `a1a4bad` shared step 0 · `46e2315` README ·
-`ef7ed14` `--swap-at` · `a3f3d6f` work log · `3602cdc` decisive1 results (interim) · decisive1 with the top-up.
+`ef7ed14` `--swap-at` · `a3f3d6f` work log · `3602cdc` decisive1 results (interim) · `e8bf07c` decisive1 with the top-up ·
+`39de1ae` review follow-ups (grader, holdout, judge v2, baselines, clustered intervals, null simulation) · the re-scored
+results and this write-up.
 
 Platform "files" (CLAUDE.md's six): not applicable. This is a separate repo that only consumes the public SDK; no API
 surface changed.
@@ -241,34 +308,40 @@ surface changed.
 
 | Check | Result |
 |---|---|
-| Unit tests (`pytest`, fakes; no platform or model) | 57 passed |
+| Unit tests (`pytest`, fakes; no platform or model) | 62 passed |
 | Synthetic validation on real forks | true V inside the 95% interval at 64/64 states |
 | Real model, real platform | smoke test 30/30 scored; medium1 62/62 tasks complete |
 | Keep/resume across windows | exercised in medium1's chain (8 windows); snapshots survived about 2 days |
 | Bisect + swap on the platform | `decisive1` pilot: 3 trunks, Haiku and Sonnet continuations scored, 0 unscored |
 | Judge | 75 judgments (3 judges × 25 clear runs of decisive1 and medium1), all parsed |
 | decisive1 on the platform | 127 trunks over 9 windows, 126 scored; resume across windows, the re-cut mid-run and the top-up worked |
+| Grader check | 26 tasks × 8 copies scored; 25 deterministic passes, gcc 0/8 |
+| Judge v2 | 225 answers (3 models × 3 samples × 25 runs), all parsed |
+| Holdout on the platform | decisive2: held-out continuations recorded under `#holdout` at its first clear cases |
 
-## 5. Status (2026-11-27)
+## 5. Status (2026-11-28)
 
-- `decisive1` and its top-up complete; judges run on all 25 clear cases; results file, README, this entry and the report
-  page (private artifact, rebuilt around the two findings) updated.
-- Nothing is running. Plan: weekly window 49% after the top-up.
+- decisive1 and the review follow-ups are written up; the re-scored results, README and this entry are updated.
+- `decisive2` runs from the chain (`chain_d2.sh`), at most 80% of each plan window (operator, 2026-11-27); it waits
+  for the weekly reset on 2026-12-01 and then runs its judges.
 - The dev test tenant's sandbox limit is still 200.
 
 ## 6. Still to do
 
-1. Fork-against-fresh check on the medium tasks (fresh runs, about 6M tokens for one per task).
-2. **Operator:** roll the dev tenant limit back to the default once the runs end.
-3. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
+1. Finish `decisive2`; score judges on its replicated cases (`decisive --replicated`).
+2. Explain fresh runs passing more often than forks (76% against 54% on 7 tasks): fresh vs. step-0 forks in the
+   same window with few continuations at once, then with a suspend/resume before the fresh run.
+3. Check and cite prior work (OmegaPRM, Math-Shepherd, VinePPO, Who&When).
+4. **Operator:** roll the dev tenant limit back to the default once the runs end.
+5. **Operator:** publish the SDK release with `fork` (Python 0.5.0 / TypeScript 0.6.0) and decide whether the repo goes
    public. Until then nobody else can run it.
-4. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
-5. Parked (operator, 2026-11-25): training a small process reward model on fork labels, with forks run through a
+6. A run through `--policy anthropic` once an API key is available, so the results speak about a standard agent loop.
+7. Parked (operator, 2026-11-25): training a small process reward model on fork labels, with forks run through a
    cheaper API (DeepSeek, estimated $100–250 for ~10k labelled states).
 
 ## 7. Operating it
 
-- Launchers and the chain script live in the session scratchpad (`decisive1.sh TRUNKS [TASKS]`, `chain_d1.sh`).
+- Launchers and the chain script live in the session scratchpad (`decisive1.sh`/`decisive2.sh TRUNKS [TASKS]`, `chain_d1.sh`, `chain_d2.sh`).
   They set the platform address and read the test tenant's token from its credential file under `/etc`. No token is
   stored in the repo.
 - Progress: `forkeval summary --experiment E`, `forkeval decisive --experiment E`.

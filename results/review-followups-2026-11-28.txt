@@ -1,0 +1,122 @@
+# Follow-ups to the 2026-11-27 review of decisive1 (2026-11-27/28). No new forks of decisive1's states: its snapshots
+# were deleted after measurement. Everything below re-reads stored runs, except the grader check
+# (results/grader-2026-11-27.txt), the fresh-run control (fresh1-haiku, fresh1-sonnet) and the reworded judges.
+
+## 1. Fresh-run control: 6 ordinary runs per task, Haiku and Sonnet via claude -p, on the 7 tasks whose post-decisive
+## states Sonnet continued in decisive1 (experiments fresh1-haiku, fresh1-sonnet, 2026-11-27). Every failure is the
+## agent ending its turn with a wrong answer; no errors, no step limits.
+task                         Haiku fresh  Sonnet fresh  Haiku step-0 forks (medium1+decisive1+decisive2)
+adaptive-rejection-sampler   4/6          1/6           20/48
+dna-insert                   6/6          1/6           20/38
+gcc-compiler-optimization    3/6          4/6           13/26
+ode-solver-rk4               5/6          6/6           11/12
+polyglot-c-py                4/6          0/6 (1-2 steps each)  13/18
+solve-sudoku                 4/6          3/6           10/24
+swe-bench-fsspec             6/6          6/6           10/12
+total                        32/42 = 76%  21/42 = 50%   97/178 = 54%
+list price per run           $0.024       $0.205
+# Fork against fresh: Haiku passes 76% of fresh runs but 54% of step-0 forks and 40/77 = 52% of trunks on these
+# tasks. Not time drift: decisive2's step-0 forks, run hours after the fresh runs, pass 7/18. Not command timeouts
+# (12% of fresh runs and 12% of step-0 forks have a timed-out command) and no network or clock errors in any
+# transcript. Open: trunks are suspended for a snapshot after every step and continuations start from a restored
+# copy, fresh runs never; continuations also run many at a time on the one dev box.
+
+## 2. Null simulation (`forkeval null`): the decisive-step search replayed on value paths with known truth
+failed runs, simulated: k = 6, confirm 8, at most 12 states, step 0 with 18; 2000 runs per cell
+gradual paths (V falls evenly from v0 to vT; no step decides): share called clear, at the ending turn + inside the run
+  v0 0.6 vT 0.0   T=4   20% =  0 + 20   T=8   16% =  0 + 16   T=16  15% =  0 + 15
+  v0 0.6 vT 0.2   T=4   19% =  5 + 15   T=8   18% =  5 + 13   T=16  15% =  6 +  9
+  v0 0.6 vT 0.4   T=4   47% = 40 +  7   T=8   46% = 40 +  5   T=16  47% = 41 +  6
+  v0 0.6 vT 0.6   T=4   84% = 82 +  2   T=8   83% = 81 +  2   T=16  83% = 81 +  2
+  v0 0.8 vT 0.0   T=4   38% =  0 + 38   T=8   27% =  0 + 27   T=16  22% =  0 + 22
+  v0 0.8 vT 0.2   T=4   34% =  5 + 28   T=8   29% =  6 + 23   T=16  23% =  5 + 18
+  v0 0.8 vT 0.4   T=4   54% = 38 + 16   T=8   50% = 38 + 12   T=16  49% = 39 + 10
+  v0 0.8 vT 0.6   T=4   87% = 81 +  5   T=8   86% = 81 +  5   T=16  85% = 81 +  4
+one decisive action (V drops from v0 to v_low across action 3 of 8): share found at that action
+  0.9 -> 0.1   clear  99%   at the right action  98%
+  0.8 -> 0.2   clear  76%   at the right action  68%
+  0.7 -> 0.3   clear  45%   at the right action  21%
+
+## 3. Judges against forks, all tasks (forkeval decisive --experiment decisive1 --experiment medium1)
+58 failed run(s); 25 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 10 of them the turn that ended the run (3 where a copy that also stopped at once passed)
+
+which step decided the failure, against the step forking found (25 runs from 13 tasks; 95% intervals resample tasks; a judge with several samples answers by majority):
+  baseline: first failed command               exact 7/25   28% [  4,  54]   within one 10/25
+  baseline: first file written                 exact 15/25  60% [ 36,  84]   within one 18/25
+  baseline: last step                          exact 10/25  40% [ 13,  68]   within one 13/25
+  claude-code:claude-haiku-5-5                 exact 14/25  56% [ 33,  79]   within one 18/25
+  claude-code:claude-haiku-5-5#v2              exact 8/25   32% [  8,  61]   within one 13/25   per sample 36%
+  claude-code:claude-haiku-5-5#v2 introduced   exact 16/25  64% [ 42,  82]   within one 19/25   per sample 61%
+  claude-code:claude-opus-5-5                  exact 16/25  64% [ 39,  88]   within one 17/25
+  claude-code:claude-opus-5-5#v2               exact 10/25  40% [ 13,  68]   within one 13/25   per sample 40%
+  claude-code:claude-opus-5-5#v2 introduced    exact 17/25  68% [ 42,  90]   within one 17/25   per sample 71%
+  claude-code:claude-sonnet-5-5                exact 17/25  68% [ 41,  92]   within one 18/25
+  claude-code:claude-sonnet-5-5#v2             exact 16/25  64% [ 33,  89]   within one 20/25   per sample 63%
+  claude-code:claude-sonnet-5-5#v2 introduced  exact 15/25  60% [ 36,  83]   within one 18/25   per sample 60%
+  baseline: a step at random                   exact 26% expected
+
+each judge against a rule on the same runs (judge right and rule wrong / the reverse; difference in exact hits with a 95% interval that resamples tasks):
+  claude-code:claude-haiku-5-5       vs last step             8 / 4    +16 points [ -19,  +52]
+  claude-code:claude-haiku-5-5       vs first file written    2 / 3     -4 points [ -24,  +21]
+  claude-code:claude-haiku-5-5#v2    vs last step             0 / 2     -8 points [ -24,   +0]
+  claude-code:claude-haiku-5-5#v2    vs first file written    2 / 9    -28 points [ -61,   +0]
+  claude-code:claude-opus-5-5        vs last step             9 / 3    +24 points [  -9,  +57]
+  claude-code:claude-opus-5-5        vs first file written    5 / 4     +4 points [ -26,  +36]
+  claude-code:claude-opus-5-5#v2     vs last step             0 / 0     +0 points [  +0,   +0]
+  claude-code:claude-opus-5-5#v2     vs first file written    4 / 9    -20 points [ -59,  +14]
+  claude-code:claude-sonnet-5-5      vs last step            10 / 3    +28 points [ -10,  +65]
+  claude-code:claude-sonnet-5-5      vs first file written    4 / 2     +8 points [ -15,  +30]
+  claude-code:claude-sonnet-5-5#v2   vs last step            10 / 4    +24 points [ -16,  +64]
+  claude-code:claude-sonnet-5-5#v2   vs first file written    4 / 3     +4 points [ -21,  +29]
+
+the same states continued by each model (pooled over states; states of one task are not independent):
+  step 0 (the task as given)
+    claude-code:claude-sonnet-5-5 11/12 = 92% [67, 99]
+    same model                   509/703 = 72% [69, 76]
+  just before the decisive step
+    same model                   129/168 = 77% [70, 83]
+  just after the decisive step
+    claude-code:claude-sonnet-5-5 14/66 = 21% [13, 32]
+    same model                   9/112 = 8% [4, 14]
+
+## 4. The same without gcc-compiler-optimization (reference solution fails 8/8 here) and tree-directory-parser (refusals)
+58 failed run(s); 18 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 4 of them the turn that ended the run (1 where a copy that also stopped at once passed); left out: gcc-compiler-optimization, tree-directory-parser
+
+which step decided the failure, against the step forking found (18 runs from 11 tasks; 95% intervals resample tasks; a judge with several samples answers by majority):
+  baseline: first failed command               exact 2/18   11% [  0,  29]   within one 4/18
+  baseline: first file written                 exact 12/18  67% [ 41,  92]   within one 14/18
+  baseline: last step                          exact 4/18   22% [  5,  50]   within one 6/18
+  claude-code:claude-haiku-5-5                 exact 11/18  61% [ 33,  84]   within one 13/18
+  claude-code:claude-haiku-5-5#v2              exact 4/18   22% [  5,  50]   within one 8/18   per sample 28%
+  claude-code:claude-haiku-5-5#v2 introduced   exact 13/18  72% [ 53,  88]   within one 15/18   per sample 69%
+  claude-code:claude-opus-5-5                  exact 12/18  67% [ 44,  92]   within one 12/18
+  claude-code:claude-opus-5-5#v2               exact 4/18   22% [  5,  50]   within one 6/18   per sample 22%
+  claude-code:claude-opus-5-5#v2 introduced    exact 13/18  72% [ 47,  93]   within one 13/18   per sample 76%
+  claude-code:claude-sonnet-5-5                exact 13/18  72% [ 45,  94]   within one 14/18
+  claude-code:claude-sonnet-5-5#v2             exact 12/18  67% [ 36,  92]   within one 15/18   per sample 65%
+  claude-code:claude-sonnet-5-5#v2 introduced  exact 13/18  72% [ 45,  94]   within one 14/18   per sample 70%
+  baseline: a step at random                   exact 19% expected
+
+each judge against a rule on the same runs (judge right and rule wrong / the reverse; difference in exact hits with a 95% interval that resamples tasks):
+  claude-code:claude-haiku-5-5       vs last step             8 / 1    +39 points [  +0,  +67]
+  claude-code:claude-haiku-5-5       vs first file written    2 / 3     -6 points [ -30,  +26]
+  claude-code:claude-haiku-5-5#v2    vs last step             0 / 0     +0 points [  +0,   +0]
+  claude-code:claude-haiku-5-5#v2    vs first file written    1 / 9    -44 points [ -73,  -12]
+  claude-code:claude-opus-5-5        vs last step             9 / 1    +44 points [ +12,  +71]
+  claude-code:claude-opus-5-5        vs first file written    4 / 4     +0 points [ -35,  +42]
+  claude-code:claude-opus-5-5#v2     vs last step             0 / 0     +0 points [  +0,   +0]
+  claude-code:claude-opus-5-5#v2     vs first file written    1 / 9    -44 points [ -73,  -12]
+  claude-code:claude-sonnet-5-5      vs last step            10 / 1    +50 points [  +8,  +79]
+  claude-code:claude-sonnet-5-5      vs first file written    3 / 2     +6 points [ -23,  +35]
+  claude-code:claude-sonnet-5-5#v2   vs last step            10 / 2    +44 points [  +0,  +79]
+  claude-code:claude-sonnet-5-5#v2   vs first file written    3 / 3     +0 points [ -31,  +32]
+
+the same states continued by each model (pooled over states; states of one task are not independent):
+  step 0 (the task as given)
+    claude-code:claude-sonnet-5-5 11/12 = 92% [67, 99]
+    same model                   509/703 = 72% [69, 76]
+  just before the decisive step
+    same model                   129/168 = 77% [70, 83]
+  just after the decisive step
+    claude-code:claude-sonnet-5-5 14/66 = 21% [13, 32]
+    same model                   9/112 = 8% [4, 14]

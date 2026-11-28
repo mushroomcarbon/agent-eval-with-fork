@@ -26,8 +26,8 @@ anything into).
 | Smoke test | `results/smoke-claude-code-haiku.txt`: `claude-haiku-5-5` through `--policy claude-code` on the three hand-written tasks; 30 runs, all scored, 29 passed |
 | Since then | the Terminal-Bench adapter, the adaptive schedule, a cap on states per trunk, resuming a trunk that a budget stopped |
 | Medium tasks | `results/medium1-claude-code-haiku.txt`: 62 Terminal-Bench tasks, Haiku through `claude -p`, one trunk each |
-| Decisive steps | `results/decisive1-claude-code-haiku.txt`: 127 Haiku trunks on the 26 tasks mixed at step 0, bisected to the step that decided each run; 25 failed runs (with medium1's) have a clear one, scored against three judge models; Sonnet continues Haiku's state just after the decisive step |
-| Not yet | a run through the API policy |
+| Decisive steps | `results/decisive1-claude-code-haiku.txt`: 127 Haiku trunks on the 26 tasks mixed at step 0, bisected to the step that decided each run; 25 failed runs (with medium1's) have a clear one, scored against three judge models and three rules. Review follow-ups (grader check, fresh-run control, reworded judges, null simulation): `results/review-followups-2026-11-28.txt`. `decisive2` (held-out continuations at every clear step) is running |
+| Not yet | a run through the API policy; an explanation for fresh runs passing more often than forks |
 
 The validation task keeps its state only in the memory of a daemon started during setup, so a fork that carried
 the filesystem but not the process would fail every test.
@@ -115,56 +115,78 @@ stopped while every fork from its last state went on to pass is decided by the t
 
 `--bisect` measures the states that find that action, not all of them: the first and the last, then the state in the
 middle of the biggest move towards the outcome, until the move is between neighbouring steps (about 2 + log2 T
-states, capped by `--max-states`). `--confirm-k 12` gives the two states either side of it 12 continuations each,
+states, capped by `--max-states`). `--confirm-k 8` gives the two states either side of it 8 continuations each,
 since 6 a side can make a move out of noise, and the search goes on if the move shifts. Every snapshot is held until
 then, so a trunk holds one sandbox per step. Step 0 is the same state for every trunk of a task and is measured once.
 
+The search picks the biggest move it sees, so the continuations that found it overstate it (regression to the
+mean). `--holdout-k 12` runs 12 more continuations at each side of every clear decisive step, recorded under the
+policy name plus `#holdout` and never used by the search; `forkeval decisive --replicated` scores only the cases
+whose drop the held-out continuations confirm. `forkeval null` replays the search on simulated value paths whose
+truth is known: on runs where V falls evenly and no step decides anything, it still calls a step inside the run
+clear 5–38% of the time (more the more V falls); a true drop from 0.9 to 0.1 is found at the right action 98% of the time, 0.8 to 0.2 68%.
+
 `forkeval judge --model M` shows a judge model each failed run that has a clear decisive step (one action, V moves at
-least 0.5 across it) with numbered steps and asks which step decided the failure; `forkeval decisive` scores the
-answers against the forks, next to baselines (the last step, the first failing command, chance). The two can
-disagree for a good reason: a judge tends to name where a mistake was made, the forks name where it stopped being
-recoverable.
+least 0.5 across it) with numbered steps and asks which step decided the failure. `--prompt-version 2 --samples 3`
+asks two questions about this agent instead, where the mistake was made and after which step it was unlikely to
+recover, three times each (scored by majority). `forkeval decisive` scores the answers against the forks, next to
+baselines: the last step, the first failing command, the first file written, chance. Intervals resample tasks,
+since one task gives several runs. `--exclude TASKS` leaves tasks out. For a run that ended on the agent's own
+turn, it also splits the continuations from the last state: if a copy that also stopped at once passed, the
+test, not the stop, may have decided the run.
+
+`forkeval grader --tasks ... -k 8` checks that each task's test gives the same answer every time: it applies the
+reference solution once, forks the result k times and scores every copy.
 
 `--swap-model` continues some of the same states with a second model: step 0 (once per task), and the states just
-before and just after each failed run's decisive step (`--swap-at after`: only the state just after, which is the
-question; Sonnet costs about 20 times as much as Haiku per continuation here). "After Haiku's decisive mistake, how often does Sonnet still
-finish the task?" is a question only an exact copy of the state can ask.
+before and just after each failed run's decisive step (`--swap-at after`: only the state just after).
 
 ```bash
-.venv/bin/forkeval run ... --bisect --max-states 12 --confirm-k 8 --swap-model claude-sonnet-5-5 --swap-k 6 --swap-at after
+.venv/bin/forkeval run ... --bisect --max-states 12 --confirm-k 8 --holdout-k 12
 .venv/bin/forkeval judge --experiment E --model claude-haiku-5-5 --model claude-sonnet-5-5 --model claude-opus-5-5
-.venv/bin/forkeval decisive --experiment E
+.venv/bin/forkeval judge --experiment E --prompt-version 2 --samples 3 --model ...
+.venv/bin/forkeval decisive --experiment E [--exclude TASKS] [--replicated]
+.venv/bin/forkeval grader --tasks DIR --format tbench -k 8
+.venv/bin/forkeval null
 ```
 
 The decided-by-step estimator assumes the measured states were not chosen by looking at the data, which the
 bisection does; use it on runs without `--bisect`.
 
-Results (`results/decisive1-claude-code-haiku.txt`): of 58 failed Haiku runs, 25 have a clear decisive step, and
-10 of those are the turn that ended the run: the agent stopped while forks from its last state went on to pass.
+### Results so far
 
-| Who names the decisive step | exact | 95% interval |
+`results/decisive1-claude-code-haiku.txt`, `results/review-followups-2026-11-28.txt`. Of 58 failed Haiku runs, 25
+have a clear decisive step (13 tasks), 10 of them the turn that ended the run. Two corrections since the first
+write-up:
+
+- `gcc-compiler-optimization`'s test is not sound here: its reference solution fails 8 of 8 copies
+  (`results/grader-2026-11-27.txt`; every other task passes 8/8). In two of its ending-turn cases, copies that also
+  stopped at once passed, so the test decided, not the stop.
+- Three of the 10 ending-turn cases are Haiku refusing `tree-directory-parser`.
+
+| Who names the decisive step | all 25 (13 tasks) | without gcc and tree: 18 (11 tasks) |
 |---|---|---|
-| Sonnet judge | 17/25 | 68% [49, 84] |
-| Opus judge | 16/25 | 64% [44, 80] |
-| Haiku judge | 14/25 | 56% [37, 74] |
-| the last step (= the ending turn) | 10/25 | 40% [23, 59] |
-| the first failing command | 7/25 | 28% [13, 47] |
-| a step at random | | 26% expected |
+| Sonnet judge | 17 = 68% [41, 92] | 13 = 72% [45, 94] |
+| Opus judge | 16 = 64% [39, 88] | 12 = 67% [44, 92] |
+| Haiku judge | 14 = 56% [33, 79] | 11 = 61% [33, 84] |
+| any judge, asked where the mistake was made (v2, majority of 3) | 15–17 | 13 = 72% |
+| first file written (else the last step) | 15 = 60% [36, 84] | 12 = 67% [41, 92] |
+| the last step (= the ending turn) | 10 = 40% [13, 68] | 4 = 22% [5, 50] |
+| the first failing command | 7 = 28% | 2 = 11% |
+| a step at random | 26% expected | 19% expected |
 
-Judges beat chance and the first-failure rule. Against the last-step rule, paired on the same runs, Sonnet is right
-where it is wrong 10 times and the reverse 3 times (sign test p = 0.09): ahead, not yet conclusively. All three
-judges miss the same 6 runs by more than a step, half in each direction. Three times they name the step where a bug
-went in while forks from after it still passed; the run was lost when the agent stopped without checking. Three
-times they name a later step (the script that produced the final answer, a later rewrite) while the forks put the
-loss earlier, where the approach that failed was chosen; one of these comes from medium1, whose states had 6
-continuations and no confirmation stage.
+95% intervals resample tasks. On the 18 sound cases the judges beat the last-step rule (Sonnet right where it is
+wrong 10 times, the reverse once: +50 points [+8, +79]) but not the rule "the first file the agent wrote" (+6 [−23,
++35]). Asked after which step the agent was unlikely to recover, Sonnet still matches the forks 12/18; Haiku and
+Opus almost always answer the last step (4/18). The search has a known false-positive rate on gradual runs (above),
+and the held-out continuations of `decisive2` (running) are the check on that.
 
-From Haiku's exact state just after its decisive step, Sonnet finishes 14/66 times (21% [13, 32]; 11 decisive1 runs
-whose decisive step is not the ending turn) and Haiku 9/112 (8% [4, 14], medium1's states included); from just
-before it, Haiku finishes 77%. The difference is concentrated: on the 7 of those states where Haiku's own
-continuations never pass, Sonnet passes 0 of 42; on the 4 where Haiku still passes sometimes (7/32), Sonnet passes
-14/24. A decisive mistake that kills the run for
-Haiku kills it for Sonnet too; Sonnet's edge is on states that are damaged but not dead.
+**Second model.** From Haiku's exact state just after its decisive step, Sonnet finished 14/66 (21%) and Haiku 9/112
+(8%). Sonnet's passes all came from the 4 states where Haiku still recovered sometimes (14/24 there, 0/42 on the 7
+where it never did). A fresh-run control on those 7 tasks changes the reading: through `claude -p`, Sonnet passes
+21/42 fresh runs and Haiku 32/42, so Sonnet is not the stronger agent in this setup and its 0/42 says nothing about
+a stronger model. The control also shows Haiku passing 76% of fresh runs on those tasks against 54% of its step-0
+forks; why is open (`results/review-followups-2026-11-28.txt`).
 
 ## Two ways to reach the model
 

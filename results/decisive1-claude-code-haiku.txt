@@ -11,6 +11,9 @@
 # "Last step" is always the turn that ended the run, so it is right exactly on the ending-turn cases.
 #
 #   forkeval decisive --experiment decisive1 --experiment medium1
+# Re-scored 2026-11-28 with the review follow-ups: per-case ending-turn split, first-file-written baseline,
+# intervals that resample tasks, paired differences, the reworded judge (#v2: 3 samples, majority; 'introduced' =
+# where the mistake was made, plain #v2 = after which step this agent was unlikely to recover).
 
 task                                                   trunk   end  decisive change  states measured (step: pass/k)
 sanitize-git-repo                                      63c97d  pass      1-7   +0.00  0:6/6 7:6/6
@@ -20,6 +23,9 @@ adaptive-rejection-sampler                             cbd195  fail        3*  +
                                                          claude-code:claude-haiku-5-5: step 3  (Step 3 wrote the entire implementation in one shot, committing to the ars() signature, the default and express)
                                                          claude-code:claude-opus-5-5: step 3  (Step 3 most likely decided the failure: the agent wrote ars() to return a list (samples, abscissae, n_density_)
                                                          claude-code:claude-sonnet-5-5: step 3  (Step 3 wrote the whole implementation, including choices such as `ars()` returning a list rather than a plain )
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [6, 6, 4]  introduced [3, 3, 3]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [6, 6, 6]  introduced [3, 3, 3]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [3, 3, 3]  introduced [3, 3, 3]
 adaptive-rejection-sampler                             0831f9  pass        2   +0.50  0:3/6 1:1/3 2:5/6 5:6/6
 adaptive-rejection-sampler                             edf326  fail        3   +0.42  0:2/6 2:5/12 3:0/12 5:0/6
 audio-synth-stft-peaks                                 edbebe  pass        4   +0.75  0:3/6 3:3/12 4:12/12 5:6/6 7:6/6
@@ -31,9 +37,13 @@ chess-best-move                                        bf597c  fail     1-30   +
 adaptive-rejection-sampler                             b160ea  pass        3   +0.38  0:9/18 2:5/8 3:8/8 5:6/6
 code-from-image                                        7e9298  pass      1-5   +0.17  0:5/6 5:6/6
 code-from-image                                        fbcde6  fail        6*  +0.88  0:6/6 5:7/8
+                                                         ending turn: copies that also stopped passed 0/1, copies that kept working 7/7
                                                          claude-code:claude-haiku-5-5: step 6  (The hash found in step 5 matches the hinted prefix, so the computed value looks right, but no command in the t)
                                                          claude-code:claude-opus-5-5: step 6  (The agent had the right hash from step 5 but ended the run claiming it wrote /app/output.txt, when no command )
                                                          claude-code:claude-sonnet-5-5: step 6  (Step 5 found the digest matching the `bee26a` hint, but the agent ended the run at step 6 claiming it wrote `/)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
 code-from-image                                        ef0312  pass     1-14   +0.08  0:11/12 14:6/6
 db-wal-recovery                                        fe3d36  pass      1-5   +0.17  0:5/6 5:6/6
 db-wal-recovery                                        103cad  pass      1-7   +0.17  0:5/6 7:6/6
@@ -50,14 +60,21 @@ dna-insert                                             5f2cde  fail        6*  +
                                                          claude-code:claude-haiku-5-5: step 6  (The script in step 6 fixed the design approach (a single back-to-back pair with the 39-nt insertion placed at )
                                                          claude-code:claude-opus-5-5: step 6  (Step 6's design script mis-modeled the edit as replacing the template base at position 213 with a 40-nt segmen)
                                                          claude-code:claude-sonnet-5-5: step 6  (The design script put the 40-nt tail, including the template's own "c", on the forward primer and assumed a 17)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [8, 7, 7]  introduced [6, 6, 6]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [8, 8, 8]  introduced [6, 6, 6]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [7, 7, 6]  introduced [6, 6, 6]
 form-filling                                           555d07  pass      1-6   +0.00  0:6/6 6:6/6
 form-filling                                           f3df1b  pass      1-7   +0.00  0:6/6 7:6/6
 gcc-compiler-optimization                              26438d  fail        1   +0.38  0:6/8 1:3/8 3:0/6
 gcc-compiler-optimization                              2536a1  pass        5   +1.00  0:4/6 4:0/8
 gcc-compiler-optimization                              96d44b  fail        7*  +0.75  0:2/6 6:6/8
+                                                         ending turn: copies that also stopped passed 6/8, copies that kept working 0/0  <- the test, not the stop, may have decided
                                                          claude-code:claude-haiku-5-5: step 5  (Step 5 produced the final timing numbers (e.g. -O0 2310.1 ms vs -Os 1296.3 ms vs -O3 507.6 ms) from a single 5)
                                                          claude-code:claude-opus-5-5: step 4  (Step 4 wrote the final script, which timed each binary over only 5 runs using date stamps; the timings look no)
                                                          claude-code:claude-sonnet-5-5: step 5  (Step 5 produced the final results (large timings of 500–2300 ms, nearly identical sizes), and the agent accept)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [5, 5, 5]  introduced [2, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [7, 7, 7]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [5, 5, 5]  introduced [2, 2, 2]
 git-multibranch                                        e4cb96  pass        7   +0.12  0:5/6 6:7/8
 git-multibranch                                        36a748  pass     1-16   +0.17  0:5/6 16:6/6
 git-multibranch                                        fdeff1  pass      1-5   +0.17  0:5/6 5:6/6
@@ -65,9 +82,13 @@ html-finance-verify                                    9fcc08  pass     1-14   +
 html-finance-verify                                    2bfed5  pass     1-10   +0.17  0:5/6 10:6/6
 html-finance-verify                                    e0a08f  pass        9   +0.12  0:6/6 8:7/8
 incompatible-python-fasttext                           fab157  fail        2*  +1.00  0:6/6 1:8/8
+                                                         ending turn: copies that also stopped passed 0/0, copies that kept working 8/8
                                                          claude-code:claude-haiku-5-5: step 2  (Step 2 ended the run with no fix, even though step 1 left the key question open: `import fasttext` succeeded u)
                                                          claude-code:claude-opus-5-5: step 2  (The agent ended the run with only a placeholder message after step 1's diagnostics, so it never fixed fasttext)
                                                          claude-code:claude-sonnet-5-5: step 2  (The agent ended the run at step 2 without fixing fasttext for /usr/bin/python3, the system python, so nothing )
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [2, 2, 2]  introduced [1, 1, 1]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [2, 2, 2]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [2, 2, 2]  introduced [2, 2, 2]
 incompatible-python-fasttext                           8e30b5  fail     8-11   +0.17  0:6/6 7:6/6 11:5/6 13:4/6 15:3/6 22:2/6 26:1/6 30:0/6
 incompatible-python-fasttext                           d617c8  pass     1-30   +0.00  0:6/6 30:6/6
 log-summary-date-ranges                                d09d7d  pass      1-3   +0.00  0:6/6 3:6/6
@@ -78,6 +99,9 @@ ode-solver-rk4                                         5466e7  fail        2*  +
                                                          claude-code:claude-haiku-5-5: step 7  (Step 7 ran `rm -rf /app/output`, deleting the solution.csv that step 6 had just generated, and the run then en)
                                                          claude-code:claude-opus-5-5: step 4  (The pure-Python rewrite always passes y to rhs as a list, so a test problem with a scalar y0 and an rhs like -)
                                                          claude-code:claude-sonnet-5-5: step 4  (The step 4 rewrite coerces a scalar y0 into a list and passes lists to rhs, which likely breaks a scalar-state)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [8, 8, 8]  introduced [5, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [8, 8, 8]  introduced [4, 4, 4]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [5, 5, 4]  introduced [4, 4, 4]
 ode-solver-rk4                                         64da8c  pass      1-5   +0.00  0:6/6 5:6/6
 polyglot-c-py                                          7c5fb0  pass        2   +0.38  0:3/6 1:4/8 2:7/8 4:6/6
 polyglot-c-py                                          59090a  pass        6   +0.25  0:5/6 5:6/8
@@ -85,6 +109,9 @@ polyglot-c-py                                          78169e  fail        2*  +
                                                          claude-code:claude-haiku-5-5: step 1  (Step 1 fixed the design: the C side uses unsigned long long, which overflows past f(93), and the `"""` lines h)
                                                          claude-code:claude-opus-5-5: step 2  (The agent compiled the stray binary `cmain` into /app/polyglot and never deleted it, which likely fails a chec)
                                                          claude-code:claude-sonnet-5-5: step 1  (Step 1 wrote the file with a 64-bit C implementation that overflows for larger k and with `"""` lines that mak)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 3, 2]  introduced [1, 1, 1]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [3, 3, 3]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [2, 3, 1]  introduced [1, 1, 1]
 protocol-analysis-rs                                   abb5e2  pass     1-28   +0.00  0:6/6
 protocol-analysis-rs                                   646845  pass     1-23   +0.00  0:6/6
 protocol-analysis-rs                                   8a232d  pass     1-24   +0.00  0:6/6 24:6/6
@@ -102,6 +129,9 @@ solve-sudoku                                           8e4458  fail        8*  +
                                                          claude-code:claude-haiku-5-5: step 4  (Step 4 accepted an OCR transcription with four unreadable cells ('?') and possibly misread givens as ground tr)
                                                          claude-code:claude-opus-5-5: step 10  (At step 10 the agent wrote the fill (2,9,8,4), chosen by a matching score that could never pick 9 because no 9)
                                                          claude-code:claude-sonnet-5-5: step 10  (The agent wrote a solution from a guessed combination of four unread cells, chosen by a meaningless similarity)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [5, 10, 10]  introduced [4, 10, 5]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [11, 11, 11]  introduced [10, 10, 8]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [5, 8, 8]  introduced [5, 6, 6]
 solve-sudoku                                           39ddb1  fail     6-10   +0.25  0:4/6 5:3/6 10:2/8
 swe-bench-fsspec                                       7deef5  pass     1-12   +0.00  0:6/6 12:6/6
 swe-bench-fsspec                                       fcd440  pass      1-7   +0.00  0:6/6 7:6/6
@@ -109,16 +139,25 @@ swe-bench-fsspec                                       fcb8f5  fail        5*  +
                                                          claude-code:claude-haiku-5-5: step 5  (Step 5 was the only code change, and it was never checked against the real package: the repo can't even be imp)
                                                          claude-code:claude-opus-5-5: step 5  (The agent gave open_async a fixed (path, mode="rb", **kwargs) signature instead of forwarding *args/**kwargs l)
                                                          claude-code:claude-sonnet-5-5: step 5  (The step 5 implementation fixes `mode` as a named parameter and forwards it positionally, unlike the sibling `)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [5, 8, 8]  introduced [5, 5, 5]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [8, 8, 8]  introduced [5, 5, 5]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [5, 5, 5]  introduced [5, 5, 5]
 tree-directory-parser                                  7da6b4  pass        1   +0.38  0:4/8 1:7/8 3:6/6
 tree-directory-parser                                  c1a6d6  fail        1*  +0.50  0:4/8
                                                          claude-code:claude-haiku-5-5: step 1  (The only step, the agent ended the run at step 1 by refusing the task, so it never created /app/files_dir or /)
                                                          claude-code:claude-opus-5-5: step 1  (The agent refused a harmless task (rebuilding an empty directory tree from a saved `tree` listing) and ended t)
                                                          claude-code:claude-sonnet-5-5: step 1  (The agent refused at the only step and never created /app/cmd.sh or /app/files_dir, so the task could not pass)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
 solve-sudoku                                           e5be6b  fail      1-4   +0.17  0:6/18 4:1/6 8:0/6
 tree-directory-parser                                  a63d89  fail        1*  +0.50  0:4/8
                                                          claude-code:claude-haiku-5-5: step 1  (The only step, where the agent refused to build the directory skeleton and created no files, was the decisive )
                                                          claude-code:claude-opus-5-5: step 1  (The agent declined to build the empty directory structure and ended the run without creating /app/cmd.sh or /a)
                                                          claude-code:claude-sonnet-5-5: step 1  (The agent refused the benign task at its only step and created no cmd.sh or files_dir, so the tests could not )
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
 tune-mjcf                                              58fb92  pass       13   +0.12  0:6/6 12:7/8
 tune-mjcf                                              07958c  pass      1-7   +0.00  0:6/6 7:6/6
 tune-mjcf                                              e39a11  pass     1-10   +0.00  0:12/12 10:6/6
@@ -135,15 +174,24 @@ adaptive-rejection-sampler                             071e1a  fail        6*  +
                                                          claude-code:claude-haiku-5-5: step 6  (Step 6 wrote the entire ars.R (sampler, log-concavity checks, and test suite) in one unreviewed pass, and its )
                                                          claude-code:claude-opus-5-5: step 6  (Step 6 most likely fixed the failure: it set the `ars` interface (lower/upper bounds, extra arguments sent to )
                                                          claude-code:claude-sonnet-5-5: step 6  (Step 6 wrote the whole implementation, fixing the ars signature and the test() output format. A mismatch with )
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [7, 8, 8]  introduced [6, 6, 6]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [8, 8, 8]  introduced [6, 6, 6]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
 adaptive-rejection-sampler                             891abb  pass        3   +0.50  0:9/18 1:3/6 2:4/8 3:8/8 7:6/6
 adaptive-rejection-sampler                             ddbf56  fail        3*  +0.62  0:9/18 2:5/8 3:0/8 5:0/6
                                                          claude-code:claude-haiku-5-5: step 3  (Step 3 wrote the entire /app/ars.R in one go, fixing the core design (finite-difference derivatives, a toleran)
                                                          claude-code:claude-opus-5-5: step 5  (Step 5 likely wrote /app/normal_samples.txt with a non-numeric header line ('sample'), which a grader reading )
                                                          claude-code:claude-sonnet-5-5: step 3  (Step 3 wrote the whole implementation, including the `ars()` interface and the `test()` output format. The age)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [6, 6, 4]  introduced [5, 3, 3]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [6, 6, 6]  introduced [3, 5, 5]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [3, 3, 5]  introduced [3, 3, 3]
 adaptive-rejection-sampler                             899ac1  fail       16*  +0.88  0:9/18 9:4/6 14:3/6 15:7/8 16:0/8 19:0/6
                                                          claude-code:claude-haiku-5-5: step 18  (Step 18 is the last substantive code change and locked in the final design: it loosened the log-concavity chec)
                                                          claude-code:claude-opus-5-5: step 18  (Probably step 18: the final rewrite of ars.R kept a rigid interface (separate scalar lower/upper, other argume)
                                                          claude-code:claude-sonnet-5-5: step 16  (Step 16 fixed the interface (ars(f, n, lower, upper, init, max_iter, ...), test(seed), and the report format),)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [18, 18, 18]  introduced [18, 18, 16]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [20, 20, 20]  introduced [16, 16, 16]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [16, 16, 16]  introduced [16, 16, 16]
 code-from-image                                        738e6d  pass      1-5   +0.08  0:11/12 5:6/6
 code-from-image                                        b98da3  pass      1-7   +0.08  0:11/12 7:6/6
 code-from-image                                        01bb00  pass      1-6   +0.08  0:11/12 6:6/6
@@ -158,10 +206,17 @@ gcc-compiler-optimization                              af6255  fail        4*  +
                                                          claude-code:claude-haiku-5-5: step 3  (Step 3 produced timings that were not sanity-checked: the -O0 and -g -O0 runs differ by only about 20 ms in a )
                                                          claude-code:claude-opus-5-5: step 3  (Step 3 wrote the only results.md timings, one 5-run median with no warm-up that was never re-checked, so they )
                                                          claude-code:claude-sonnet-5-5: step 2  (The step 2 script uses a median of 5 wall-clock runs of fib(40), which is noisy against the 200 ms error bound)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 5, 3]  introduced [2, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [5, 5, 5]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [4, 3, 3]  introduced [2, 2, 2]
 gcc-compiler-optimization                              73a368  fail        5*  +0.62  0:12/20 4:5/8
+                                                         ending turn: copies that also stopped passed 4/6, copies that kept working 1/2  <- the test, not the stop, may have decided
                                                          claude-code:claude-haiku-5-5: step 3  (Step 3 produced the timing numbers that went into the final table, and they were unreliable: the same fib(40) )
                                                          claude-code:claude-opus-5-5: step 2  (Writing the benchmark script in step 2 fixed the compile commands, table format and wall-clock timing, and not)
                                                          claude-code:claude-sonnet-5-5: step 2  (The script written in step 2 fixed the compile and timing approach, and its results looked implausible: -Os wa)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 3, 3]  introduced [2, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [5, 5, 5]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [3, 3, 3]  introduced [2, 2, 2]
 gcc-compiler-optimization                              3f9d2b  fail        1   +0.22  0:12/20 1:3/8 3:1/6
 incompatible-python-fasttext                           c45340  pass     1-16   +0.00  0:6/6 16:6/6
 incompatible-python-fasttext                           7984a9  pass      1-5   +0.00  0:6/6 5:6/6
@@ -177,6 +232,9 @@ polyglot-c-py                                          b04b4b  fail        1*  +
                                                          claude-code:claude-haiku-5-5: step 2  (At step 2 the agent saw gcc emit "missing terminating \" character" warnings, chose to keep them, and ended th)
                                                          claude-code:claude-opus-5-5: step 1  (Step 1 compiled the program inside /app/polyglot, leaving a stray `cmain` binary where tests likely expect onl)
                                                          claude-code:claude-sonnet-5-5: step 1  (The file written in step 1 computes Fibonacci in C with unsigned long long, which overflows past F(93), and it)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [2, 2, 2]  introduced [1, 1, 1]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [2, 2, 2]  introduced [1, 1, 1]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [1, 1, 1]  introduced [1, 1, 1]
 polyglot-c-py                                          cf100b  pass        2   +0.25  0:8/12 1:4/8 2:6/8 3:6/6
 solve-sudoku                                           ec3b82  fail      1-7   +0.17  0:6/18 7:1/6 14:0/6
 solve-sudoku                                           f8f8b8  fail     1-11   +0.17  0:6/18 11:1/6 22:0/6
@@ -188,13 +246,20 @@ swe-bench-fsspec                                       7f0573  fail        4*  +
                                                          claude-code:claude-haiku-5-5: step 4  (Step 4 is where the agent wrote the only code change, a DirFileSystem.open_async that delegates to the wrapped)
                                                          claude-code:claude-opus-5-5: step 4  (The agent wrote open_async with a fixed (path, mode="rb", **kwargs) signature instead of copying the sibling o)
                                                          claude-code:claude-sonnet-5-5: step 4  (The agent implemented open_async with an explicit `mode` parameter forwarded positionally instead of mirroring)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [9, 9, 9]  introduced [4, 4, 4]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [9, 9, 9]  introduced [4, 4, 4]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [4, 4, 4]  introduced [4, 4, 4]
 swe-bench-fsspec                                       39de97  pass     1-12   +0.00  0:6/6 12:6/6
 tree-directory-parser                                  6ec064  pass        1   +0.25  0:4/8 1:6/8 2:8/8 5:6/6 11:6/6
 tree-directory-parser                                  05ad93  pass        1   +0.38  0:4/8 1:7/8 3:6/6
 tree-directory-parser                                  57cae5  fail        3*  +1.00  0:4/8 2:8/8
+                                                         ending turn: copies that also stopped passed 0/0, copies that kept working 8/8
                                                          claude-code:claude-haiku-5-5: step 3  (Step 3 ended the run without building /app/files_dir or writing and making executable /app/cmd.sh, so none of )
                                                          claude-code:claude-opus-5-5: step 3  (The agent refused the harmless directory-rebuild task and ended the run without creating /app/cmd.sh or /app/f)
                                                          claude-code:claude-sonnet-5-5: step 3  (The agent refused to build the structure and never created /app/cmd.sh, so the task could not pass after that )
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 3, 3]  introduced [3, 3, 3]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [3, 3, 3]  introduced [3, 3, 3]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [2, 3, 3]  introduced [2, 2, 3]
 tree-directory-parser                                  336ed0  pass        1   +0.38  0:4/8 1:7/8 2:5/6 4:6/6
 break-filter-js-from-html                              90c2d3  pass      1-8   +0.00  0:6/6
 audio-synth-stft-peaks                                 47fc0d  fail      1-5   +0.50  0:2/4
@@ -216,6 +281,9 @@ dna-insert                                             75a985  fail        4*  +
                                                          claude-code:claude-haiku-5-5: step 7  (The script in step 7 fixed the design logic: it picked the shortest valid pair with a 15-nt forward annealing )
                                                          claude-code:claude-opus-5-5: step 7  (Step 7's design script locked in the flawed strategy — the entire 39-nt insert as a 5' tail on one primer plus)
                                                          claude-code:claude-sonnet-5-5: step 7  (The design script chose the shortest primer pair, leaving the reverse primer's Tm (58.04 °C) just above the 58)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [8, 8, 8]  introduced [7, 7, 7]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [9, 9, 9]  introduced [7, 7, 7]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [8, 8, 8]  introduced [7, 7, 7]
 enemy-grid-escape                                      4d31cd  pass        -          
 extract-elf                                            66e7cd  fail     1-13   +0.00  0:0/6
 fibonacci-server                                       c32971  pass      1-6   +0.00  0:6/6
@@ -229,6 +297,9 @@ audio-synth-stft-peaks                                 4460f3  fail        5*  +
                                                          claude-code:claude-haiku-5-5: step 5  (audioproc.py fixed the design that every later output depends on: it computed the STFT from the int16 samples )
                                                          claude-code:claude-opus-5-5: step 5  (audioproc.py, written here and never revised, fixes the WAV and STFT data: it quantizes with 32767 but analyse)
                                                          claude-code:claude-sonnet-5-5: step 5  (audioproc.py computes the STFT from the int16-quantized samples scaled by 1/32768 instead of the normalized fl)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [10, 10, 6]  introduced [5, 5, 5]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [10, 10, 10]  introduced [5, 5, 5]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [4, 5, 5]  introduced [4, 5, 5]
 dna-insert                                             02b1ee  fail     5-11   +0.67  0:5/6 1:3/6 2:5/6 3:3/6 4:4/6
 enemy-grid-escape                                      805242  pass     1-15   +0.00  0:1/1
 fmri-encoding-r                                        fd1fb6  pass      1-6   +0.00  0:2/2
@@ -252,9 +323,13 @@ merge-diff-arc-agi-task                                3af4ee  pass     1-16   +
 modernize-scientific-stack                             013f2e  pass      1-5   +0.00  0:6/6
 nginx-request-logging                                  b26837  pass      1-5   +0.00  0:6/6
 ode-solver-rk4                                         0f8ec5  fail        4*  +1.00  0:5/6 1:5/6 2:6/6 3:6/6
+                                                         ending turn: copies that also stopped passed 1/1, copies that kept working 5/5  <- the test, not the stop, may have decided
                                                          claude-code:claude-haiku-5-5: step 2  (Step 2 chose substeps capped at h_max/2 rather than h_max, so RK4 used about 1600 rhs calls against a minimum )
                                                          claude-code:claude-opus-5-5: step 2  (Step 2 wrote the only version of the solver, and later steps never revised it: it halves the step to h_max/2 a)
                                                          claude-code:claude-sonnet-5-5: step 2  (The solver written in Step 2 uses substeps of h_max/2 with RK4, so it makes about 8× the minimum rhs calls and)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [4, 4, 4]  introduced [4, 4, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [4, 4, 4]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [2, 2, 2]  introduced [2, 2, 2]
 openssl-selfsigned-cert                                798a58  pass      1-5   +0.00  0:6/6
 optimal-transport                                      1240f3  fail      1-7   +0.00  0:0/6
 parallelize-compute-squares                            5adc84  pass      1-6   +0.00  0:6/6
@@ -266,14 +341,21 @@ puzzle-solver                                          11f6f4  fail        2*  +
                                                          claude-code:claude-haiku-5-5: step 2  (The solver written in step 2 fixed the output semantics: path.tsv records the state after each move, and layer)
                                                          claude-code:claude-opus-5-5: step 2  (Step 2 wrote the solver and fixed every output choice (path.tsv starting at the first move with no start row, )
                                                          claude-code:claude-sonnet-5-5: step 2  (Step 2's solver sorted each layer file and ran BFS past the goal depth to all 31 depths, without using the hel)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 3, 2]  introduced [2, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [5, 5, 5]  introduced [2, 2, 2]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [2, 2, 2]  introduced [2, 2, 2]
 pypi-server                                            bdfcd2  pass      1-3   +0.00  0:6/6
 pytorch-model-cli                                      6963ee  pass      1-8   +0.00  0:6/6
 raman-fitting                                          397e04  fail     1-14   +0.00  0:0/6
 regex-log                                              6fcc4c  pass        2   +0.50  0:5/6 1:3/6 2:6/6
 sanitize-git-repo                                      3e9d67  fail        6*  +0.83  0:5/6 1:6/6 2:6/6 3:6/6 4:6/6 5:5/6
+                                                         ending turn: copies that also stopped passed 0/0, copies that kept working 5/6
                                                          claude-code:claude-haiku-5-5: step 6  (Step 6 ended the run by claiming the secrets were replaced in three files, but no edit was ever performed and )
                                                          claude-code:claude-opus-5-5: step 6  (Through step 5 the agent had only run read-only searches and had located all the secrets, but at step 6 it end)
                                                          claude-code:claude-sonnet-5-5: step 6  (The agent ended the run claiming it had replaced the secrets, but it never ran any edit command, so every secr)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [6, 6, 6]  introduced [6, 6, 6]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [5, 5, 5]  introduced [6, 6, 6]
 solve-maze-challenge                                   baa9ec  fail      1-5   +0.00  0:0/6
 solve-sudoku                                           2a60d4  fail      1-6   +0.17  0:4/6 6:3/6 12:2/6 18:1/6 24:1/6 30:0/6
 sparql-professors-universities                         df2f7c  pass      1-7   +0.00  0:6/6
@@ -283,24 +365,49 @@ swe-bench-fsspec                                       547087  pass      5-7   +
 swe-bench-langcodes                                    911380  pass     1-10   +0.00  0:6/6
 train-bpe-tokenizer                                    a97871  pass      1-8   +0.00  0:6/6
 tree-directory-parser                                  95415a  fail        3*  +1.00  0:5/6 1:4/6 2:6/6
+                                                         ending turn: copies that also stopped passed 0/0, copies that kept working 6/6
                                                          claude-code:claude-haiku-5-5: step 2  (The generator in step 2 assumes each tree indent is exactly 4 ASCII characters, but step 1's cat -A output sho)
                                                          claude-code:claude-opus-5-5: step 3  (The agent ended the run claiming /app/cmd.sh had been generated, but it had only written /tmp/gen_cmd.py and n)
                                                          claude-code:claude-sonnet-5-5: step 3  (The agent ended the run without ever executing /tmp/gen_cmd.py, so /app/cmd.sh and /app/files_dir were never c)
+                                                         claude-code:claude-haiku-5-5#v2: unrecoverable [3, 3, 3]  introduced [2, 2, 2]
+                                                         claude-code:claude-opus-5-5#v2: unrecoverable [3, 3, 3]  introduced [3, 3, 3]
+                                                         claude-code:claude-sonnet-5-5#v2: unrecoverable [3, 3, 3]  introduced [2, 2, 2]
 tune-mjcf                                              29413c  pass      5-7   +0.33  0:5/6 2:5/6 4:4/6 7:6/6
 vulnerable-secret                                      3f0770  pass        1   +0.17  0:5/6 1:6/6
 wasm-pipeline                                          55777e  pass        2   +0.17  0:4/6 1:4/6 2:5/6 4:6/6
 weighted-max-sat-solver                                dc2d14  pass     1-15   +0.00  0:6/6
 winning-avg-corewars                                   81babd  pass     8-10   +1.00  0:4/6 3:2/6 7:0/6 10:6/6
 
-58 failed run(s); 25 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 10 of them the turn that ended the run
+58 failed run(s); 25 with a clear decisive step (marked *: one action, V moves at least 0.5 across it), 10 of them the turn that ended the run (3 where a copy that also stopped at once passed)
 
-which step decided the failure, against the step forking found:
-  claude-code:claude-haiku-5-5 exact 14/25 = 56% [37, 74]   within one step 18/25 = 72% [53, 87]
-  claude-code:claude-opus-5-5  exact 16/25 = 64% [44, 80]   within one step 17/25 = 68% [49, 84]
-  claude-code:claude-sonnet-5-5 exact 17/25 = 68% [49, 84]   within one step 18/25 = 72% [53, 87]
-  baseline: last step          exact 10/25 = 40% [23, 59]
-  baseline: first failed command exact 7/25 = 28% [13, 47]
-  baseline: a step at random   exact 26% expected
+which step decided the failure, against the step forking found (25 runs from 13 tasks; 95% intervals resample tasks; a judge with several samples answers by majority):
+  baseline: first failed command               exact 7/25   28% [  4,  54]   within one 10/25
+  baseline: first file written                 exact 15/25  60% [ 36,  84]   within one 18/25
+  baseline: last step                          exact 10/25  40% [ 13,  68]   within one 13/25
+  claude-code:claude-haiku-5-5                 exact 14/25  56% [ 33,  79]   within one 18/25
+  claude-code:claude-haiku-5-5#v2              exact 8/25   32% [  8,  61]   within one 13/25   per sample 36%
+  claude-code:claude-haiku-5-5#v2 introduced   exact 16/25  64% [ 42,  82]   within one 19/25   per sample 61%
+  claude-code:claude-opus-5-5                  exact 16/25  64% [ 39,  88]   within one 17/25
+  claude-code:claude-opus-5-5#v2               exact 10/25  40% [ 13,  68]   within one 13/25   per sample 40%
+  claude-code:claude-opus-5-5#v2 introduced    exact 17/25  68% [ 42,  90]   within one 17/25   per sample 71%
+  claude-code:claude-sonnet-5-5                exact 17/25  68% [ 41,  92]   within one 18/25
+  claude-code:claude-sonnet-5-5#v2             exact 16/25  64% [ 33,  89]   within one 20/25   per sample 63%
+  claude-code:claude-sonnet-5-5#v2 introduced  exact 15/25  60% [ 36,  83]   within one 18/25   per sample 60%
+  baseline: a step at random                   exact 26% expected
+
+each judge against a rule on the same runs (judge right and rule wrong / the reverse; difference in exact hits with a 95% interval that resamples tasks):
+  claude-code:claude-haiku-5-5       vs last step             8 / 4    +16 points [ -19,  +52]
+  claude-code:claude-haiku-5-5       vs first file written    2 / 3     -4 points [ -24,  +21]
+  claude-code:claude-haiku-5-5#v2    vs last step             0 / 2     -8 points [ -24,   +0]
+  claude-code:claude-haiku-5-5#v2    vs first file written    2 / 9    -28 points [ -61,   +0]
+  claude-code:claude-opus-5-5        vs last step             9 / 3    +24 points [  -9,  +57]
+  claude-code:claude-opus-5-5        vs first file written    5 / 4     +4 points [ -26,  +36]
+  claude-code:claude-opus-5-5#v2     vs last step             0 / 0     +0 points [  +0,   +0]
+  claude-code:claude-opus-5-5#v2     vs first file written    4 / 9    -20 points [ -59,  +14]
+  claude-code:claude-sonnet-5-5      vs last step            10 / 3    +28 points [ -10,  +65]
+  claude-code:claude-sonnet-5-5      vs first file written    4 / 2     +8 points [ -15,  +30]
+  claude-code:claude-sonnet-5-5#v2   vs last step            10 / 4    +24 points [ -16,  +64]
+  claude-code:claude-sonnet-5-5#v2   vs first file written    4 / 3     +4 points [ -21,  +29]
 
 the same states continued by each model (pooled over states; states of one task are not independent):
   step 0 (the task as given)
